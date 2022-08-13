@@ -2,7 +2,7 @@
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
 	"description": "Import and expand php namespaces",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE",
@@ -219,5 +219,11 @@
 	"devDependencies": {
 		"@types/vscode": "^1.68.0",
 		"@types/node": "16.x"
+	},
+	"__metadata": {
+		"id": "5ef755e0-2c5f-4be6-893d-1d85e17228da",
+		"publisherDisplayName": "Stoil Dobreff",
+		"publisherId": "849beef8-bf63-469c-b5f8-55d04b5b096c",
+		"isPreReleaseVersion": false
 	}
 }
