@@ -1,9 +1,5 @@
 # PHP Resolver
 
-[![Latest Release](https://vsmarketplacebadge.apphb.com/version-short/StoilDobreff.php-resolver.svg
-)](https://vsmarketplacebadge.apphb.com/version-short/StoilDobreff.php-resolver) [![Installs](https://vsmarketplacebadge.apphb.com/version-short/StoilDobreff.php-resolver.svg
-)](https://vsmarketplacebadge.apphb.com/version-short/StoilDobreff.php-resolver) [![Rating](https://vsmarketplacebadge.apphb.com/version-short/StoilDobreff.php-resolver.svg)](https://vsmarketplacebadge.apphb.com/version-short/StoilDobreff.php-resolver#review-details)
-
 PHP Resolver can do different things with your PHP source files.
 
 ## Commands
