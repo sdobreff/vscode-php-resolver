@@ -1,0 +1,223 @@
+{
+	"name": "php-resolver",
+	"displayName": "PHP Resolver",
+	"description": "Import and expand php namespaces",
+	"version": "1.0.0",
+	"publisher": "StoilDobreff",
+	"author": "Stoil Dobreff <sdobreff@gmail.com>",
+	"license": "SEE LICENSE IN LICENSE",
+	"engines": {
+		"vscode": "^1.68.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"keywords": [
+		"php",
+		"namespace",
+		"class",
+		"import",
+		"expand"
+	],
+	"galleryBanner": {
+		"color": "#282c34",
+		"theme": "dark"
+	},
+	"activationEvents": [
+		"onLanguage:php",
+		"onCommand:phpResolver.import",
+		"onCommand:phpResolver.importAll",
+		"onCommand:phpResolver.expand",
+		"onCommand:phpResolver.sort",
+		"onCommand:phpResolver.highlightNotImported",
+		"onCommand:phpResolver.highlightNotUsed",
+		"onCommand:phpResolver.generateNamespace"
+	],
+	"main": "./src/extension",
+	"icon": "images/icon.png",
+	"contributes": {
+		"menus": {
+			"editor/context": [
+				{
+					"when": "resourceLangId == php",
+					"command": "phpResolver.import",
+					"alt": "phpResolver.import",
+					"group": "0_php_resolver@1"
+				},
+				{
+					"when": "resourceLangId == php",
+					"command": "phpResolver.importAll",
+					"alt": "phpResolver.importAll",
+					"group": "0_php_resolver@2"
+				},
+				{
+					"when": "resourceLangId == php",
+					"command": "phpResolver.expand",
+					"alt": "phpResolver.expand",
+					"group": "0_php_resolver@3"
+				},
+				{
+					"when": "resourceLangId == php",
+					"command": "phpResolver.sort",
+					"alt": "phpResolver.sort",
+					"group": "0_php_resolver@4"
+				},
+				{
+					"when": "resourceLangId == php",
+					"command": "phpResolver.highlightNotImported",
+					"alt": "phpResolver.highlightNotImported",
+					"group": "0_php_resolver@5"
+				},
+				{
+					"when": "resourceLangId == php",
+					"command": "phpResolver.highlightNotUsed",
+					"alt": "phpResolver.highlightNotUsed",
+					"group": "0_php_resolver@6"
+				},
+				{
+					"when": "resourceLangId == php",
+					"command": "phpResolver.generateNamespace",
+					"alt": "phpResolver.generateNamespace",
+					"group": "0_php_resolver@7"
+				}
+			]
+		},
+		"configuration": {
+			"type": "object",
+			"title": "PHP Resolver extension configuration",
+			"properties": {
+				"phpResolver.exclude": {
+					"type": "string",
+					"default": "**/node_modules/**",
+					"description": "Exclude glob pattern while finding files"
+				},
+				"phpResolver.showMessageOnStatusBar": {
+					"type": "boolean",
+					"default": false,
+					"description": "Show message on status bar instead of notification box"
+				},
+				"phpResolver.autoSort": {
+					"type": "boolean",
+					"default": true,
+					"description": "Auto sort after imports"
+				},
+				"phpResolver.sortOnSave": {
+					"type": "boolean",
+					"default": false,
+					"description": "Auto sort when a file is saved"
+				},
+				"phpResolver.autoImportOnSave": {
+					"type": "boolean",
+					"default": false,
+					"description": "Auto import classes on save"
+				},
+				"phpResolver.sortAlphabetically": {
+					"type": "boolean",
+					"default": false,
+					"description": "Sort imports in alphabetical order instead of line length"
+				},
+				"phpResolver.sortNatural": {
+					"type": "boolean",
+					"default": false,
+					"description": "Sort imports using a 'natural order' algorithm"
+				},
+				"phpResolver.leadingSeparator": {
+					"type": "boolean",
+					"default": true,
+					"description": "Expand class with leading namespace separator"
+				},
+				"phpResolver.highlightOnSave": {
+					"type": "boolean",
+					"default": false,
+					"description": "Auto highlight not imported and not used when a file is saved"
+				},
+				"phpResolver.highlightOnOpen": {
+					"type": "boolean",
+					"default": false,
+					"description": "Auto highlight not imported and not used when a file is opened"
+				}
+			}
+		},
+		"commands": [
+			{
+				"title": "Import Class",
+				"command": "phpResolver.import"
+			},
+			{
+				"title": "Import All Classes",
+				"command": "phpResolver.importAll"
+			},
+			{
+				"title": "Expand Class",
+				"command": "phpResolver.expand"
+			},
+			{
+				"title": "Sort Imports",
+				"command": "phpResolver.sort"
+			},
+			{
+				"title": "Highlight Not Imported Classes",
+				"command": "phpResolver.highlightNotImported"
+			},
+			{
+				"title": "Highlight Not Used Classes",
+				"command": "phpResolver.highlightNotUsed"
+			},
+			{
+				"title": "Generate namespace for this file",
+				"command": "phpResolver.generateNamespace"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "phpResolver.import",
+				"key": "ctrl+alt+i",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "phpResolver.importAll",
+				"key": "ctrl+alt+a",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "phpResolver.expand",
+				"key": "ctrl+alt+e",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "phpResolver.sort",
+				"key": "ctrl+alt+s",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "phpResolver.highlightNotImported",
+				"key": "ctrl+alt+n",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "phpResolver.highlightNotUsed",
+				"key": "ctrl+alt+u",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "phpResolver.generateNamespace",
+				"key": "ctrl+alt+g",
+				"when": "editorTextFocus"
+			}
+		]
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/sdobreff/vscode-php-resolver"
+	},
+	"bugs": {
+		"url": "https://github.com/sdobreff/vscode-php-resolver/issues"
+	},
+	"dependencies": {
+		"node-natural-sort": "^0.8.6"
+	},
+	"devDependencies": {
+		"@types/vscode": "^1.68.0",
+		"@types/node": "16.x"
+	}
+}
