@@ -83,6 +83,18 @@ function activate(context) {
     }));
 
     context.subscriptions.push(resolver);
+
+    resolver.loadFileSize();
+
+    var onSave = vscode.workspace.onDidSaveTextDocument(() => {
+        resolver.loadFileSize();
+    });
+    var onActiveEditorChanged = vscode.window.onDidChangeActiveTextEditor(() => {
+        resolver.loadFileSize();
+    });
+
+    context.subscriptions.push(onSave);
+    context.subscriptions.push(onActiveEditorChanged);
 }
 
 exports.activate = activate;

@@ -1,9 +1,12 @@
 let vscode = require('vscode');
 let builtInClasses = require('./classes');
 let naturalSort = require('node-natural-sort');
+let libFS = require('fs').promises;
 
 class Resolver {
     regexWordWithNamespace = new RegExp(/[a-zA-Z0-9\_\\]+/);
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1);
+    importedClasses = [];
 
     async importCommand(selection) {
         let resolving = this.resolving(selection);
@@ -42,7 +45,7 @@ class Resolver {
     async importAll() {
         let text = this.activeEditor().document.getText();
         let phpClasses = this.getPhpClasses(text);
-        let useStatements = this.getUseStatementsArray();
+        let useStatements = this.getImportedPhpClasses(text);
 
         for (let phpClass of phpClasses) {
             if (!useStatements.includes(phpClass)) {
@@ -229,19 +232,18 @@ class Resolver {
     }
 
     getImportedPhpClasses(text) {
-        let regex = /use\s+(?!function)(?!const)(.*?);/gms;
-        let matches = [];
+        let matches = /^\s?use\s+(?!function)(?!const)(.*?);/gms.exec(text);
         let importedPhpClasses = [];
-
-        while (matches = regex.exec(text)) {
-            let className = matches[1].split('\\').pop();
-
-            className = className.replace(/(\r\n|\n|\r|{|})|\t/gm, "");
-
-            let classes = className.split(/\sas\s|\s*,\s*/)
-
-            importedPhpClasses.push.apply(importedPhpClasses, classes);
+        if (matches) {
+            let phpClasses = matches[1].split(",");
+            for (let i = 0; i < phpClasses.length; i++) {
+                let currentClass = phpClasses[i].split('\\').pop();
+                currentClass = currentClass.split(/\sas\s|\s*,\s*/).map(n => n.replace(/[\W]+/g, ""));
+                importedPhpClasses.push.apply(importedPhpClasses, currentClass);
+            }
         }
+
+        this.importedClasses = importedPhpClasses;
 
         return importedPhpClasses;
     }
@@ -257,7 +259,7 @@ class Resolver {
 
         let classBaseName = fqcn.match(/(\w+)/g).pop();
 
-        if (this.hasConflict(useStatements, classBaseName)) {
+        if (this.hasConflict(classBaseName)) {
             this.insertAsAlias(selection, fqcn, useStatements, declarationLines);
         } else if (replaceClassAfterImport) {
             this.importAndReplaceSelectedClass(selection, classBaseName, fqcn, declarationLines);
@@ -292,7 +294,7 @@ class Resolver {
             return;
         }
 
-        if (this.hasConflict(useStatements, alias)) {
+        if (this.hasConflict(alias)) {
             this.showErrorMessage(`$(issue-opened)  This alias is already in use.`);
 
             this.insertAsAlias(selection, fqcn, useStatements, declarationLines)
@@ -513,32 +515,20 @@ class Resolver {
         return vscode.window.activeTextEditor;
     }
 
-    hasConflict(useStatements, resolving) {
-        for (let i = 0; i < useStatements.length; i++) {
-            if (useStatements[i].text.match(/(\w+)?;/).pop() === resolving) {
-                return true;
-            }
+    hasConflict(resolving) {
+        if (this.importedClasses.length === 0) {
+            this.getImportedPhpClasses(this.activeEditor().document.getText());
+        }
+
+        if (this.importedClasses.length === 0) {
+            return false;
+        }
+
+        if (this.importedClasses.includes(resolving)) {
+            return true;
         }
 
         return false;
-    }
-
-    getUseStatementsArray() {
-        let useStatements = [];
-
-        for (let line = 0; line < this.activeEditor().document.lineCount; line++) {
-            let text = this.activeEditor().document.lineAt(line).text;
-
-            if (text.startsWith('use ')) {
-                useStatements.push(
-                    text.match(/(\w+?);/)[1]
-                );
-            } else if (/(class|trait|interface)\s+\w+/.test(text)) {
-                break;
-            }
-        }
-
-        return useStatements;
     }
 
     getDeclarations(pickedClass = null) {
@@ -550,6 +540,8 @@ class Resolver {
             class: null,
             classComment: null
         };
+
+        let multilineUseStatement = false;
 
         for (let line = 0; line < this.activeEditor().document.lineCount; line++) {
             let text = this.activeEditor().document.lineAt(line).text;
@@ -564,7 +556,7 @@ class Resolver {
                 break;
             }
 
-            if ((declarationLines.PHPTag && line === declarationLines.PHPTag) || declarationLines.PHPTag) {
+            if ((declarationLines.PHPTag && line === declarationLines.PHPTag)) {
                 if (text.startsWith('/*')) {
                     if (! /\/\*.*\*\//.test(text)) {
                         declarationLines.PHPTag = line + 1;
@@ -575,15 +567,34 @@ class Resolver {
                     declarationLines.PHPTag = line + 1;
                     continue;
                 }
+                if (text.trim() === '') {
+                    declarationLines.PHPTag = line + 1;
+                    continue;
+                }
+            }
+
+            if ((declarationLines.useStatement && line === declarationLines.useStatement) && multilineUseStatement) {
+                if (! /;/.test(text)) {
+                    declarationLines.useStatement = line + 1;
+                    continue;
+                }
+                if (/;/.test(text)) {
+                    declarationLines.useStatement = line + 1;
+                    multilineUseStatement = false;
+                    continue;
+                }
             }
 
             if (text.startsWith('<?php')) {
                 declarationLines.PHPTag = line + 1;
             } else if (text.startsWith('namespace ') || text.startsWith('<?php namespace')) {
                 declarationLines.namespace = line + 1;
-            } else if (text.startsWith('use ')) {
+            } else if (/^\s?use\s+(?!function)(?!const)(.*?)/.test(text)) {
                 useStatements.push({ text, line });
                 declarationLines.useStatement = line + 1;
+                if (! /;/.test(text)) {
+                    multilineUseStatement = true;
+                }
             } else if (/(class|trait|interface)\s+\w+/.test(text)) {
                 declarationLines.class = line + 1;
             }
@@ -741,6 +752,29 @@ class Resolver {
                 });
             }
         });
+    }
+
+    async loadFileSize() {
+        let editor = vscode.window.activeTextEditor;
+        if (editor === undefined) {
+            this.statusBarItem.text = 'Size Unknown';
+        } else {
+            await libFS.stat(editor.document.uri.path, (error, stats) => {
+                if (error) {
+                    this.statusBarItem.text = this.bytesToSize(0);
+                } else {
+                    this.statusBarItem.text = this.bytesToSize(stats.size);
+                }
+            });
+        }
+        this.statusBarItem.show();
+    }
+
+    bytesToSize(bytes) {
+        var sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        if (bytes == 0) return '0 Byte';
+        var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+        return +(Math.round(bytes / Math.pow(1024, i) + "e+2") + "e-2") + ' ' + sizes[i]; //Math.round(bytes / Math.pow(1024, i)) + ' ' + sizes[i];
     }
 }
 

@@ -2,6 +2,9 @@
 
 PHP Resolver can do different things with your PHP source files.
 
+- Extension supports importing classes not only from PSR4 but also WordPress format - `class-<name of the class>`. It automatically checks for namespace declarations in the files and extracts data from there.
+- Extension adds file size info in the status bar
+
 ## Commands
 
 Search these commands by the title on command palette.
@@ -54,6 +57,7 @@ You can override these default settings according to your needs.
     "phpResolver.leadingSeparator": true,         // Expand class with leading namespace separator
     "phpResolver.highlightOnSave": false,         // Auto highlight not imported and not used when a file is saved
     "phpResolver.highlightOnOpen": false          // Auto highlight not imported and not used when a file is opened
+    "phpResolver.autoImportOnSave": false         // Auto import not imported classes when a file is saved
 }
 ```
 
