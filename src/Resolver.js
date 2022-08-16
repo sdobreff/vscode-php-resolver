@@ -232,10 +232,12 @@ class Resolver {
     }
 
     getImportedPhpClasses(text) {
-        let matches = /^\s?use\s+(?!function)(?!const)(.*?);/gms.exec(text);
+        const regex = /^\s?use\s+(?!function)(?!const)(.*?);/gms;
         let importedPhpClasses = [];
-        if (matches) {
-            let phpClasses = matches[1].split(",");
+
+        let m;
+        while ((m = regex.exec(text)) !== null) {
+            let phpClasses = m[1].split(",");
             for (let i = 0; i < phpClasses.length; i++) {
                 let currentClass = phpClasses[i].split('\\').pop();
                 currentClass = currentClass.split(/\sas\s|\s*,\s*/).map(n => n.replace(/[\W]+/g, ""));
@@ -260,7 +262,7 @@ class Resolver {
         let classBaseName = fqcn.match(/(\w+)/g).pop();
 
         if (this.hasConflict(classBaseName)) {
-            this.insertAsAlias(selection, fqcn, useStatements, declarationLines);
+            this.showErrorMessage(`$(issue-opened) This class / alias is imported.`);
         } else if (replaceClassAfterImport) {
             this.importAndReplaceSelectedClass(selection, classBaseName, fqcn, declarationLines);
         } else {

@@ -4,3 +4,6 @@
 - Improved searching
 - Rewrite importing logic and class name checking
 - Added file-size in status bar as part of the extension
+
+## 1.0.3
+- Improved use statements extraction
