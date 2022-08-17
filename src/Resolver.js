@@ -6,6 +6,7 @@ let libFS = require('fs').promises;
 class Resolver {
     regexWordWithNamespace = new RegExp(/[a-zA-Z0-9\_\\]+/);
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1);
+    namespace = null;
     importedClasses = [];
 
     async importCommand(selection) {
@@ -24,11 +25,14 @@ class Resolver {
             replaceClassAfterImport = true;
         } else {
             resolving = '*' + resolving.replace(/[\_\-]/, '*');
-            let files = await this.findFiles(resolving);
-            if (files.length === 0) {
-                resolving = resolving.toLowerCase();
-                files = await this.findFiles(resolving);
-            }
+
+            let filesPSR = await this.findFiles(resolving);
+
+            resolving = resolving.toLowerCase();
+            let filesWP = await this.findFiles(resolving);
+
+            let files = [...filesPSR, ...filesWP];
+
             let namespaces = '';
             if (files.length > 0) {
                 namespaces = await this.findNamespaces(selectedClass, files);
@@ -39,7 +43,9 @@ class Resolver {
             fqcn = await this.pickClass(namespaces);
         }
 
-        this.importClass(selection, fqcn, replaceClassAfterImport);
+        if (fqcn !== '') {
+            this.importClass(selection, fqcn, replaceClassAfterImport);
+        }
     }
 
     async importAll() {
@@ -413,6 +419,8 @@ class Resolver {
             vscode.window.showQuickPick(namespaces).then(picked => {
                 if (picked !== undefined) {
                     resolve(picked);
+                } else {
+                    resolve('');
                 }
             });
         })
@@ -444,6 +452,10 @@ class Resolver {
                 if (textLine.startsWith('namespace ') || textLine.startsWith('<?php namespace ')) {
                     let namespace = textLine.match(/^(namespace|(<\?php namespace))\s+(.+)?;/).pop();
                     let fqcn = `${namespace}\\${resolving}`;
+
+                    if (namespace === this.getNamespace()) {
+                        break;
+                    }
 
                     if (!parsedNamespaces.includes(fqcn)) {
                         parsedNamespaces.push(fqcn);
@@ -754,6 +766,20 @@ class Resolver {
                 });
             }
         });
+    }
+
+    getNamespace() {
+        if (this.namespace === null) {
+            const regex = /^.?namespace\s+(.*?);/gms;
+            this.namespace = '';
+
+            let m = regex.exec(this.activeEditor().document.getText());
+
+            if (m !== null) {
+                this.namespace = m[1];
+            }
+        }
+        return this.namespace;
     }
 
     async loadFileSize() {
