@@ -4,6 +4,10 @@ PHP Resolver can do different things with your PHP source files.
 
 - Extension supports importing classes not only from PSR4 but also WordPress format - `class-<name of the class>`. It automatically checks for namespace declarations in the files and extracts data from there.
 - Extension adds file size info in the status bar
+- `Expand with namespace` command will expand the selected class with its namespace, if there are more than one class candidate - you have to make a manual selection. 
+  **Note**: if you have to make a manual selection but you close the dialog without making a selection, and `phpResolver.leadingSeparator` is set to true (default), namespace wont be added but the class will be prefixed with '\'.
+
+If there is a class which is part of the same namespace as the current one, it wont be added to the dialog (if there are multiple class candidates - check the `Expand with namespace` above) and it wont be added to the `use` section of the class.
 
 ## Commands
 
@@ -20,7 +24,7 @@ Search these commands by the title on command palette.
         "command": "phpResolver.importAll"
     },
     {
-        "title": "Expand Class",
+        "title": "Expand with namespace",
         "command": "phpResolver.expand"
     },
     {

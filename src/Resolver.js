@@ -358,9 +358,23 @@ class Resolver {
             return this.showErrorMessage(`$(issue-opened)  No class is selected.`);
         }
 
-        let files = await this.findFiles(resolving);
-        let namespaces = await this.findNamespaces(resolving, files);
+        let selectedClass = resolving;
+
+        resolving = '*' + resolving.replace(/[\_\-]/, '*');
+
+        let filesPSR = await this.findFiles(resolving);
+
+        resolving = resolving.toLowerCase();
+        let filesWP = await this.findFiles(resolving);
+
+        let files = [...filesPSR, ...filesWP];
+
+        let namespaces = await this.findNamespaces(selectedClass, files);
         let fqcn = await this.pickClass(namespaces);
+
+        if (fqcn === '') {
+            fqcn = selectedClass;
+        }
 
         this.changeSelectedClass(selection, fqcn, true);
     }
@@ -430,7 +444,7 @@ class Resolver {
         let textDocuments = [];
 
         for (let i = 0; i < files.length; i++) {
-            let fileName = files[i].fsPath.replace(/^.*[\\\/]/, '').split('.')[0];
+            // let fileName = files[i].fsPath.replace(/^.*[\\\/]/, '').split('.')[0];
 
             // if (fileName !== resolving) {
             //     continue;

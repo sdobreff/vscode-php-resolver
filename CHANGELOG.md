@@ -1,5 +1,8 @@
 # Change Log
 
+## 1.0.5
+- `Expand class` command is changed to `Expand with namespace`. Now WordPress classes are also supported.
+  
 ## 1.0.4
 - Improved use statements namespace extraction and selection, if class is not in use statements, but it has same namespace, it is not included / shown in the namespace selection dialog.
   
