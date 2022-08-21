@@ -460,24 +460,41 @@ class Resolver {
         let parsedNamespaces = [];
 
         for (let i = 0; i < docs.length; i++) {
-            for (let line = 0; line < docs[i].lineCount; line++) {
-                let textLine = docs[i].lineAt(line).text;
+            let foundNS = docs[i].getText().match(/(namespace|(<\?php namespace))\s+(.+)?;/);
+            if (foundNS) {
+                let namespace = foundNS.pop();
+                let fqcn = `${namespace}\\${resolving}`;
 
-                if (textLine.startsWith('namespace ') || textLine.startsWith('<?php namespace ')) {
-                    let namespace = textLine.match(/^(namespace|(<\?php namespace))\s+(.+)?;/).pop();
-                    let fqcn = `${namespace}\\${resolving}`;
+                // if (namespace === this.getNamespace()) {
+                //     continue;
+                // }
 
-                    if (namespace === this.getNamespace()) {
-                        break;
-                    }
-
-                    if (!parsedNamespaces.includes(fqcn)) {
-                        parsedNamespaces.push(fqcn);
-                        break;
-                    }
+                if (!parsedNamespaces.includes(fqcn)) {
+                    parsedNamespaces.push(fqcn);
+                    continue;
                 }
             }
         }
+
+        // for (let i = 0; i < docs.length; i++) {
+        //     for (let line = 0; line < docs[i].lineCount; line++) {
+        //         let textLine = docs[i].lineAt(line).text;
+
+        //         if (textLine.startsWith('namespace ') || textLine.startsWith('<?php namespace ')) {
+        //             let namespace = textLine.match(/^(namespace|(<\?php namespace))\s+(.+)?;/).pop();
+        //             let fqcn = `${namespace}\\${resolving}`;
+
+        //             if (namespace === this.getNamespace()) {
+        //                 break;
+        //             }
+
+        //             if (!parsedNamespaces.includes(fqcn)) {
+        //                 parsedNamespaces.push(fqcn);
+        //                 break;
+        //             }
+        //         }
+        //     }
+        // }
 
         // If selected text is a built-in php class add that at the beginning.
         if (builtInClasses.includes(resolving)) {
@@ -593,10 +610,9 @@ class Resolver {
                 }
                 if (text.startsWith('* ') || text.startsWith(' *') || text.startsWith(' */') || text.startsWith('*/')) {
                     declarationLines.PHPTag = line + 1;
-                    continue;
-                }
-                if (text.trim() === '') {
-                    declarationLines.PHPTag = line + 1;
+                    if (text.startsWith(' */') || text.startsWith('*/')) {
+                        declarationLines.PHPTag++;
+                    }
                     continue;
                 }
             }
@@ -613,7 +629,7 @@ class Resolver {
                 }
             }
 
-            if (text.startsWith('<?php')) {
+            if (text.startsWith('<?php') && declarationLines.PHPTag === 0) {
                 declarationLines.PHPTag = line + 1;
             } else if (text.startsWith('namespace ') || text.startsWith('<?php namespace')) {
                 declarationLines.namespace = line + 1;
@@ -697,12 +713,12 @@ class Resolver {
     async generateNamespace() {
         let currentUri = this.activeEditor().document.uri;
         let currentFile = currentUri.path;
-        let currentPath = currentFile.substr(0, currentFile.lastIndexOf('/'));
+        let currentPath = currentFile.substring(0, currentFile.lastIndexOf('/'));
 
         let workspaceFolder = vscode.workspace.getWorkspaceFolder(currentUri);
 
         if (workspaceFolder === undefined) {
-            return this.showErrorMessage('No folder openned in workspace, cannot find composer.json');
+            return this.showErrorMessage('No folder opened in workspace, cannot find composer.json');
         }
 
         //try to retrieve composer file by searching recursively into parent folders of the current file
@@ -711,7 +727,7 @@ class Resolver {
         let composerPath = currentFile;
 
         do {
-            composerPath = composerPath.substr(0, composerPath.lastIndexOf('/'));
+            composerPath = composerPath.substring(0, composerPath.lastIndexOf('/'));
             composerFile = await vscode.workspace.findFiles(new vscode.RelativePattern(composerPath, 'composer.json'));
         } while (!composerFile.length && composerPath !== workspaceFolder.uri.path)
 
@@ -726,11 +742,18 @@ class Resolver {
             let composerJson = JSON.parse(document.getText());
             let psr4 = (composerJson.autoload || {})['psr-4'];
 
+            let devNS = 'psr-4';
+
             if (psr4 === undefined) {
-                return this.showErrorMessage('No psr-4 key in composer.json autoload object, automatic namespace generation failed');
+                psr4 = (composerJson.autoload || {})['psr-0'];
+                devNS = 'psr-0';
             }
 
-            let devPsr4 = (composerJson['autoload-dev'] || {})['psr-4'];
+            if (psr4 === undefined) {
+                return this.showErrorMessage('Neither psr-4 or psr-0 keys in composer.json autoload object, automatic namespace generation failed');
+            }
+
+            let devPsr4 = (composerJson['autoload-dev'] || {})[devNS];
 
             if (devPsr4 !== undefined) {
                 psr4 = { ...psr4, ...devPsr4 };
@@ -743,12 +766,36 @@ class Resolver {
                 currentRelativePath += '/';
             }
 
-            let namespaceBase = Object.keys(psr4).filter(function (namespaceBase) {
-                return currentRelativePath.lastIndexOf(psr4[namespaceBase]) !== -1;
-            })[0];
+            if (currentRelativePath.startsWith('/')) {
+                currentRelativePath = currentRelativePath.substring(1);
+            }
+
+            // Check is there is an exact match
+            let namespaceBase = Object.keys(psr4).find(key => psr4[key] === currentRelativePath);
+
+            if (namespaceBase === undefined) {
+                let pathParts = currentRelativePath.split('/');
+                while (pathParts.length > 1) {
+                    pathParts.pop();
+                    let newPathToCheck = pathParts.join('/') + '/';
+                    console.log('Path check: ' + newPathToCheck);
+                    namespaceBase = Object.keys(psr4).find(key => psr4[key] === newPathToCheck);
+                    if (namespaceBase !== undefined) {
+                        break;
+                    }
+                }
+            }
+
+            if (namespaceBase === undefined) {
+                return this.showErrorMessage('Neither psr-4 or psr-0 keys in composer.json autoload object found, automatic namespace generation failed');
+            }
+
+            // let namespaceBase = Object.keys(psr4).filter(function (namespaceBase) {
+            //     console.log(psr4[namespaceBase]);
+            //     return currentRelativePath.lastIndexOf(psr4[namespaceBase]) !== -1;
+            // })[0];
 
             let baseDir = psr4[namespaceBase];
-
             namespaceBase = namespaceBase.replace(/\\$/, '');
 
             let namespace = currentPath.substring(currentPath.lastIndexOf(baseDir) + baseDir.length);
@@ -757,6 +804,7 @@ class Resolver {
                 namespace = namespace.replace(/\//g, '\\');
                 namespace = namespace.replace(/^\\/, '');
                 namespace = namespace.replace(/\\$/, '');
+                namespace = namespace.replace(/\-/, '_');
                 namespace = namespaceBase + '\\' + namespace;
             } else {
                 namespace = namespaceBase;
@@ -776,7 +824,8 @@ class Resolver {
                 this.replaceNamespaceStatement(namespace, declarationLines.namespace);
             } else {
                 this.activeEditor().edit(textEdit => {
-                    textEdit.insert(new vscode.Position(1, 0), namespace);
+                    textEdit.insert(new vscode.Position(declarationLines.PHPTag, 0), namespace);
+                    textEdit.insert(new vscode.Position(declarationLines.PHPTag + 1, 0), '');
                 });
             }
         });

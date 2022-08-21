@@ -1,5 +1,10 @@
 # Change Log
 
+## 1.0.6
+- Speed and performance optimizations.
+- Namespace resolving logic is improved
+- Now psr-0 is also supported fot the proper namespace generation
+  
 ## 1.0.5
 - `Expand class` command is changed to `Expand with namespace`. Now WordPress classes are also supported.
   
