@@ -8,6 +8,8 @@ class Resolver {
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1);
     namespace = null;
     importedClasses = [];
+    currentClass = '';
+    currentNameSpace = '';
 
     async importCommand(selection) {
         let resolving = this.resolving(selection);
@@ -24,7 +26,7 @@ class Resolver {
             fqcn = resolving.replace(/^\\?/, '');
             replaceClassAfterImport = true;
         } else {
-            resolving = '*' + resolving.replace(/[\_\-]/, '*');
+            resolving = '*' + resolving.replace(/[\_\-]/g, '*');
 
             let filesPSR = await this.findFiles(resolving);
 
@@ -37,7 +39,7 @@ class Resolver {
             if (files.length > 0) {
                 namespaces = await this.findNamespaces(selectedClass, files);
             } else {
-                return this.showErrorMessage(`$(issue-opened)  No files found.`);
+                return this.showErrorMessage(`$(issue-opened)  No files found for ${selection}.`);
             }
 
             fqcn = await this.pickClass(namespaces);
@@ -267,6 +269,11 @@ class Resolver {
 
         let classBaseName = fqcn.match(/(\w+)/g).pop();
 
+        // is that current class ?
+        if (fqcn === this.currentNameSpace + '\\' + this.currentClass) {
+            return;
+        }
+
         if (this.hasConflict(classBaseName)) {
             this.showErrorMessage(`$(issue-opened) This class / alias is imported.`);
         } else if (replaceClassAfterImport) {
@@ -278,6 +285,26 @@ class Resolver {
 
     async insert(fqcn, declarationLines, alias = null) {
         let [prepend, append, insertLine] = this.getInsertLine(declarationLines);
+
+        if (null === alias) {
+            if (fqcn === this.currentNameSpace + '\\' + this.currentClass) {
+                return;
+            }
+            let classBaseName = fqcn.match(/(\w+)/g).pop();
+
+            let fullText = this.activeEditor().document.getText();
+            // 'g' flag is for global search & 'm' flag is for multiline.
+
+            const regex = new RegExp("[\\\\]?" + fqcn.replace(/\\/g, '\\\\') + "(?![A-za-z0–9_])", 'gm');
+
+            let textReplace = fullText.replace(regex, classBaseName);
+            let invalidRange = new vscode.Range(0, 0, this.activeEditor().document.lineCount, 0);
+            let validFullRange = this.activeEditor().document.validateRange(invalidRange);
+
+            await this.activeEditor().edit(editBuilder => {
+                editBuilder.replace(validFullRange, textReplace);
+            }).catch(err => console.log(err));
+        }
 
         await this.activeEditor().edit(textEdit => {
             textEdit.replace(
@@ -360,8 +387,7 @@ class Resolver {
 
         let selectedClass = resolving;
 
-        resolving = '*' + resolving.replace(/[\_\-]/, '*');
-
+        resolving = '*' + resolving.replace(/[\_\-]/g, '*');
         let filesPSR = await this.findFiles(resolving);
 
         resolving = resolving.toLowerCase();
@@ -369,7 +395,13 @@ class Resolver {
 
         let files = [...filesPSR, ...filesWP];
 
-        let namespaces = await this.findNamespaces(selectedClass, files);
+        let namespaces = '';
+        if (files.length > 0) {
+            namespaces = await this.findNamespaces(selectedClass, files);
+        } else {
+            return this.showErrorMessage(`$(issue-opened)  No files found for ${selectedClass}.`);
+        }
+
         let fqcn = await this.pickClass(namespaces);
 
         if (fqcn === '') {
@@ -415,7 +447,7 @@ class Resolver {
                 let parsedNamespaces = this.parseNamespaces(docs, resolving);
 
                 if (parsedNamespaces.length === 0) {
-                    return this.showErrorMessage(`$(circle-slash)  The class is not found.`);
+                    return this.showErrorMessage(`$(circle-slash)  The class ${resolving} is not found.`);
                 }
 
                 resolve(parsedNamespaces);
@@ -633,6 +665,7 @@ class Resolver {
                 declarationLines.PHPTag = line + 1;
             } else if (text.startsWith('namespace ') || text.startsWith('<?php namespace')) {
                 declarationLines.namespace = line + 1;
+                this.currentNameSpace = text.match(/namespace ((?:\\{1,2}\w+|\w+\\{1,2})(?:\w+\\{0,2})+)/)[1];
             } else if (/^\s?use\s+(?!function)(?!const)(.*?)/.test(text)) {
                 useStatements.push({ text, line });
                 declarationLines.useStatement = line + 1;
@@ -641,6 +674,7 @@ class Resolver {
                 }
             } else if (/(class|trait|interface)\s+\w+/.test(text)) {
                 declarationLines.class = line + 1;
+                this.currentClass = text.match(/class ([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/)[1];
             }
         }
 
@@ -778,7 +812,6 @@ class Resolver {
                 while (pathParts.length > 1) {
                     pathParts.pop();
                     let newPathToCheck = pathParts.join('/') + '/';
-                    console.log('Path check: ' + newPathToCheck);
                     namespaceBase = Object.keys(psr4).find(key => psr4[key] === newPathToCheck);
                     if (namespaceBase !== undefined) {
                         break;
@@ -824,8 +857,7 @@ class Resolver {
                 this.replaceNamespaceStatement(namespace, declarationLines.namespace);
             } else {
                 this.activeEditor().edit(textEdit => {
-                    textEdit.insert(new vscode.Position(declarationLines.PHPTag, 0), namespace);
-                    textEdit.insert(new vscode.Position(declarationLines.PHPTag + 1, 0), '');
+                    textEdit.insert(new vscode.Position(declarationLines.PHPTag - 1, 0), '\n' + namespace + '\n');
                 });
             }
         });

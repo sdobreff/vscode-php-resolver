@@ -1,5 +1,10 @@
 # Change Log
 
+## 1.0.7
+- Namespace collapse for imported classes
+- Better errors
+- Current class / namespace is not imported
+
 ## 1.0.6
 - Speed and performance optimizations.
 - Namespace resolving logic is improved
