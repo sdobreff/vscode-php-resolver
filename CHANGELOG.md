@@ -1,5 +1,9 @@
 # Change Log
 
+## 1.0.8
+- Bug fixes for proper classes extraction from the source
+- Bug fixe for namespace generation
+
 ## 1.0.7
 - Namespace collapse for imported classes
 - Better errors

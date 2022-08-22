@@ -63,6 +63,9 @@ class Resolver {
     }
 
     getPhpClasses(text) {
+        text = text.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1');
+        text = text.replace(/\?>(.*)<(\?|\%)\=?(php)?/gm, '');
+
         let phpClasses = this.getExtended(text);
 
         phpClasses = phpClasses.concat(this.getFromFunctionParameters(text));
@@ -831,7 +834,9 @@ class Resolver {
             let baseDir = psr4[namespaceBase];
             namespaceBase = namespaceBase.replace(/\\$/, '');
 
-            let namespace = currentPath.substring(currentPath.lastIndexOf(baseDir) + baseDir.length);
+            currentRelativePath += '/';
+
+            let namespace = currentRelativePath.substring(currentRelativePath.lastIndexOf(baseDir) + baseDir.length);
 
             if (namespace !== "") {
                 namespace = namespace.replace(/\//g, '\\');
@@ -839,6 +844,8 @@ class Resolver {
                 namespace = namespace.replace(/\\$/, '');
                 namespace = namespace.replace(/\-/, '_');
                 namespace = namespaceBase + '\\' + namespace;
+                namespace = namespace.replace(/\\$/, '');
+
             } else {
                 namespace = namespaceBase;
             }
