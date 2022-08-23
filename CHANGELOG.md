@@ -1,5 +1,8 @@
 # Change Log
 
+## 1.0.9
+- Added progress indication for improved classes
+
 ## 1.0.8
 - Bug fixes for proper classes extraction from the source
 - Bug fixe for namespace generation

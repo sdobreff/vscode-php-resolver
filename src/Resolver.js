@@ -55,11 +55,18 @@ class Resolver {
         let phpClasses = this.getPhpClasses(text);
         let useStatements = this.getImportedPhpClasses(text);
 
-        for (let phpClass of phpClasses) {
-            if (!useStatements.includes(phpClass)) {
-                await this.importCommand(phpClass);
+        vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: 'Importing classes'
+        }, async (progress) => {
+            for (let phpClass of phpClasses) {
+                if (!useStatements.includes(phpClass)) {
+                    progress.report({ message: 'Importing : ' + phpClass, });
+                    await this.importCommand(phpClass);
+                    progress.report({ increment: 100 / phpClasses.length, message: 'Imported : ' + phpClass, });
+                }
             }
-        }
+        });
     }
 
     getPhpClasses(text) {

@@ -1,8 +1,8 @@
 {
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
-	"description": "Import and expand php namespaces",
-	"version": "1.0.8",
+	"description": "Import, expand and collapse php namespaces",
+	"version": "1.0.9",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE",
@@ -17,6 +17,7 @@
 		"namespace",
 		"class",
 		"import",
+		"collapse",
 		"expand",
 		"collapse",
 		"WordPress"
