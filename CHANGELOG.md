@@ -1,5 +1,15 @@
 # Change Log
 
+## 1.1.1
+- Issue with use statement regular expression fixed
+- Added option to add global classes with use statements as aliases
+- Fixed class extraction RE problem
+- Various bug fixes and code improvements
+  
+## 1.1.0
+- Classes to include are case insensitive
+- Class names RE changed
+
 ## 1.0.9
 - Added progress indication for improved classes
 

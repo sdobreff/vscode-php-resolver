@@ -80,7 +80,15 @@ class Resolver {
         phpClasses = phpClasses.concat(this.getFromStaticCalls(text));
         phpClasses = phpClasses.concat(this.getFromInstanceofOperator(text));
 
-        return phpClasses.filter((v, i, a) => a.indexOf(v) === i);
+        let temp = [];
+        return phpClasses.filter((v, i, a) => {
+            //a.indexOf(v) === i
+            let _x = typeof v === 'string' ? v.toLowerCase() : v;
+            if (temp.indexOf(_x) === -1) {
+                temp.push(_x)
+                return v;
+            }
+        });
     }
 
     getExtended(text) {
@@ -117,7 +125,7 @@ class Resolver {
     }
 
     getInitializedWithNew(text) {
-        let regex = /new ([A-Z][A-Za-z0-9\-\_]*)/gm;
+        let regex = /new\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff\/]*)\s*\(/gm;
         let matches = [];
         let phpClasses = [];
 
@@ -141,7 +149,7 @@ class Resolver {
     }
 
     getFromInstanceofOperator(text) {
-        let regex = /instanceof ([A-Z_][A-Za-z0-9\_]*)/gm;
+        let regex = /instanceof\s+([A-Z_][A-Za-z0-9\_]*)/gm;
         let matches = [];
         let phpClasses = [];
 
@@ -285,7 +293,7 @@ class Resolver {
         }
 
         if (this.hasConflict(classBaseName)) {
-            this.showErrorMessage(`$(issue-opened) This class / alias is imported.`);
+            this.showErrorMessage(`This class / alias ${classBaseName} is imported.`);
         } else if (replaceClassAfterImport) {
             this.importAndReplaceSelectedClass(selection, classBaseName, fqcn, declarationLines);
         } else {
@@ -295,19 +303,26 @@ class Resolver {
 
     async insert(fqcn, declarationLines, alias = null) {
         let [prepend, append, insertLine] = this.getInsertLine(declarationLines);
+        let classBaseName = fqcn.match(/(\w+)/g).pop();
+
+        let noGlobalsImport = this.config('dontImportGlobal');
+        let parts = fqcn.split('\\');
+        let isGlobal = false;
+        if (parts.length === 1) {
+            isGlobal = true;
+        }
 
         if (null === alias) {
             if (fqcn === this.currentNameSpace + '\\' + this.currentClass) {
                 return;
             }
-            let classBaseName = fqcn.match(/(\w+)/g).pop();
 
             let fullText = this.activeEditor().document.getText();
             // 'g' flag is for global search & 'm' flag is for multiline.
 
             const regex = new RegExp("[\\\\]?" + fqcn.replace(/\\/g, '\\\\') + "(?![A-za-z0–9_])", 'gm');
 
-            let textReplace = fullText.replace(regex, classBaseName);
+            let textReplace = fullText.replace(regex, ((isGlobal && noGlobalsImport) ? '\\' : '') + classBaseName);
             let invalidRange = new vscode.Range(0, 0, this.activeEditor().document.lineCount, 0);
             let validFullRange = this.activeEditor().document.validateRange(invalidRange);
 
@@ -317,17 +332,25 @@ class Resolver {
         }
 
         await this.activeEditor().edit(textEdit => {
-            textEdit.replace(
-                new vscode.Position((insertLine), 0),
-                (`${prepend}use ${fqcn}`) + (alias !== null ? ` as ${alias}` : '') + (`;${append}`)
-            );
+            if (null === alias) {
+                if (isGlobal) {
+                    alias = classBaseName;
+                }
+            }
+            if (!isGlobal || (isGlobal && !noGlobalsImport)) {
+                textEdit.replace(
+                    new vscode.Position((insertLine), 0),
+                    (`${prepend}use ${fqcn}`) + (alias !== null ? ` as ${alias}` : '') + (`;${append}`)
+                );
+            }
         });
 
         if (this.config('autoSort')) {
             this.sortImports();
         }
 
-        this.showMessage('$(check)  The class is imported.');
+        this.showMessage(`$(check)  The class ${classBaseName} is imported.`);
+        this.importedClasses = [];
     }
 
     async insertAsAlias(selection, fqcn, useStatements, declarationLines) {
@@ -340,7 +363,7 @@ class Resolver {
         }
 
         if (this.hasConflict(alias)) {
-            this.showErrorMessage(`$(issue-opened)  This alias is already in use.`);
+            this.showErrorMessage(`$(issue-opened)  This alias (${alias}) is already in use.`);
 
             this.insertAsAlias(selection, fqcn, useStatements, declarationLines)
         } else if (alias !== '') {
@@ -539,9 +562,9 @@ class Resolver {
         // }
 
         // If selected text is a built-in php class add that at the beginning.
-        if (builtInClasses.includes(resolving)) {
-            parsedNamespaces.unshift(resolving);
-        }
+        // if (builtInClasses.includes(resolving)) {
+        //     parsedNamespaces.unshift(resolving);
+        // }
 
         // If namespace can't be parsed but there is a file with the same
         // name of selected text then assuming it's a global class and
@@ -634,7 +657,7 @@ class Resolver {
             let text = this.activeEditor().document.lineAt(line).text;
 
             if (pickedClass !== null && text === `use ${pickedClass};`) {
-                throw new Error('$(issue-opened)  The class is already imported.');
+                throw new Error(`$(issue-opened)  The class ${pickedClass} is already imported.`);
             }
 
             // break if all declarations were found.
@@ -675,7 +698,7 @@ class Resolver {
                 declarationLines.PHPTag = line + 1;
             } else if (text.startsWith('namespace ') || text.startsWith('<?php namespace')) {
                 declarationLines.namespace = line + 1;
-                this.currentNameSpace = text.match(/namespace ((?:\\{1,2}\w+|\w+\\{1,2})(?:\w+\\{0,2})+)/)[1];
+                this.currentNameSpace = text.match(/namespace\s+((?:\\{1,2}\w+|\w+\\{0,2})(?:\w+\\{0,2})+)/)[1];
             } else if (/^\s?use\s+(?!function)(?!const)(.*?)/.test(text)) {
                 useStatements.push({ text, line });
                 declarationLines.useStatement = line + 1;
@@ -684,7 +707,7 @@ class Resolver {
                 }
             } else if (/(class|trait|interface)\s+\w+/.test(text)) {
                 declarationLines.class = line + 1;
-                this.currentClass = text.match(/class ([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/)[1];
+                this.currentClass = text.match(/class|trait|interface\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/)[1];
             }
         }
 
@@ -830,7 +853,7 @@ class Resolver {
             }
 
             if (namespaceBase === undefined) {
-                return this.showErrorMessage('Neither psr-4 or psr-0 keys in composer.json autoload object found, automatic namespace generation failed');
+                return this.showErrorMessage('Neither psr-4 or psr-0 keys in composer.json autoload object found that matches ' + currentRelativePath + ', automatic namespace generation failed');
             }
 
             // let namespaceBase = Object.keys(psr4).filter(function (namespaceBase) {

@@ -9,6 +9,8 @@ PHP Resolver can do different things with your PHP source files.
 - `Expand with namespace` command will expand the selected class with its **namespace**, if there are more than one class candidate - you have to make a manual selection. 
   **Note**: if you have to make a manual selection but you close the dialog without making a selection, and `phpResolver.leadingSeparator` is set to true (default), **namespace** wont be added but the class will be prefixed with '\'.
 
+*Note for **WordPress** users:* there must be **composer.json** in the root of the project dir with either **psr-4** or **pcr-0** section defined, even if you are not following these standard. These are used for proper namespace generation. If you add one of these sections in your **composer.json** that wont affect your project.
+
 If there is a class which is part of the same namespace as the current one, it wont be added to the dialog (if there are multiple class candidates - check the `Expand with namespace` above) and it wont be added to the `use` section of the class.
 
 ## Commands
@@ -64,6 +66,7 @@ You can override these default settings according to your needs.
     "phpResolver.highlightOnSave": false,         // Auto highlight not imported and not used when a file is saved
     "phpResolver.highlightOnOpen": false          // Auto highlight not imported and not used when a file is opened
     "phpResolver.autoImportOnSave": false         // Auto import not imported classes when a file is saved
+    "phpResolver.dontImportGlobal": true          // Do not import global classes as aliases with use statement
 }
 ```
 
