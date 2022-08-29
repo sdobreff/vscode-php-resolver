@@ -2,7 +2,7 @@
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
 	"description": "Import, expand and collapse php namespaces",
-	"version": "1.1.1",
+	"version": "1.1.2",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE",

@@ -1,5 +1,8 @@
 # Change Log
 
+## 1.1.2
+- Bug fix in class extraction Regular Expression
+  
 ## 1.1.1
 - Issue with use statement regular expression fixed
 - Added option to add global classes with use statements as aliases

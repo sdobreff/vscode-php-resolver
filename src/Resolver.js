@@ -707,7 +707,7 @@ class Resolver {
                 }
             } else if (/(class|trait|interface)\s+\w+/.test(text)) {
                 declarationLines.class = line + 1;
-                this.currentClass = text.match(/class|trait|interface\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/)[1];
+                this.currentClass = text.match(/[class|trait|interface]\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/)[1];
             }
         }
 
