@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.1.3
+- Function parameters classes extraction and exception catch classes parameter extraction improvements
+- Current class name extraction changed
+- Added PHP primitives and classes which should not be extracted / imported
+- Changes namespace extraction logic
+
 ## 1.1.2
 - Bug fix in class extraction Regular Expression
   

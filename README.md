@@ -6,8 +6,20 @@ PHP Resolver can do different things with your PHP source files.
 - After namespaces importing, the classes are automatically collapsed.
 - Extension supports **importing classes** not only from PSR4 and PSR0 but also **WordPress** format - `class-<name of the class>`. It automatically **checks for namespace declarations** in the files and extracts data from there.
 - Extension adds **file size info** in the status bar
-- `Expand with namespace` command will expand the selected class with its **namespace**, if there are more than one class candidate - you have to make a manual selection. 
-  **Note**: if you have to make a manual selection but you close the dialog without making a selection, and `phpResolver.leadingSeparator` is set to true (default), **namespace** wont be added but the class will be prefixed with '\'.
+- `Expand with namespace` command will expand the selected class with its **namespace**, if there are more than one class candidate - you have to make a manual selection via dialog. 
+  **Note**: if you have to make a manual selection, but you close the dialog without making a selection, and `phpResolver.leadingSeparator` is set to true (default), **namespace** wont be added but the class will be prefixed with '\'.
+- Currently partial namespaces are not supported. That means that if you have something like:
+    ```
+    use Namespace\DifferentParsers\Parser;
+
+    ...
+
+    $parser = new Parser\StringWalker($parseroptions);
+
+    ```
+    *StringWalker* wont be recognized properly. If you use `Import class` command - the extension will import just this - *use Parser\StringWalker*. If you remove *Parser\\* it will be imported properly (if the file with the class is found by the extension) or the import will look like this *use Namespace\DifferentParsers\Parser\StringWalker;*.
+    Same applies for the `Import All Classes` command - it wont import classes properly, but it will work if you remove the *Parser\\* part.
+
 
 *Note for **WordPress** users:* there must be **composer.json** in the root of the project dir with either **psr-4** or **pcr-0** section defined, even if you are not following these standard. These are used for proper namespace generation. If you add one of these sections in your **composer.json** that wont affect your project.
 

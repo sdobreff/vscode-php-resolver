@@ -2,14 +2,20 @@ let vscode = require('vscode');
 let builtInClasses = require('./classes');
 let naturalSort = require('node-natural-sort');
 let libFS = require('fs').promises;
+let crypto = require('crypto');
 
 class Resolver {
     regexWordWithNamespace = new RegExp(/[a-zA-Z0-9\_\\]+/);
+    regexClassnames = /(class|trait|interface)\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/gms;
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1);
+    typeHintPrimitives = ['self', 'parent', 'array', 'bool', 'float', 'int', 'string', 'object', 'mixed', '__CLASS__'];
     namespace = null;
     importedClasses = [];
+    // Stores the current text as hash - checking this, gives us an idea of the current source is changed
+    currentPHPFileHash = '';
     currentClass = '';
     currentNameSpace = '';
+    classesToExclude = ['self', '__CLASS__',];
 
     async importCommand(selection) {
         let resolving = this.resolving(selection);
@@ -39,7 +45,7 @@ class Resolver {
             if (files.length > 0) {
                 namespaces = await this.findNamespaces(selectedClass, files);
             } else {
-                return this.showErrorMessage(`$(issue-opened)  No files found for ${selection}.`);
+                return this.showErrorMessage(`$(issue-opened)  No files found for ${selectedClass}.`);
             }
 
             fqcn = await this.pickClass(namespaces);
@@ -73,6 +79,13 @@ class Resolver {
         text = text.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1');
         text = text.replace(/\?>(.*)<(\?|\%)\=?(php)?/gm, '');
 
+        let className = '';
+
+        if (className = this.regexClassnames.exec(text)) {
+            // Extract current class name (if any) and add it to the classToExcluds
+            this.classesToExclude.push(className[2]);
+        }
+
         let phpClasses = this.getExtended(text);
 
         phpClasses = phpClasses.concat(this.getFromFunctionParameters(text));
@@ -92,7 +105,7 @@ class Resolver {
     }
 
     getExtended(text) {
-        let regex = /extends ([A-Z][A-Za-z0-9\-\_]*)/gm;
+        let regex = /extends\s+([A-Z][A-Za-z0-9\-\_]*)/gm;
         let matches = [];
         let phpClasses = [];
 
@@ -104,19 +117,52 @@ class Resolver {
     }
 
     getFromFunctionParameters(text) {
-        let regex = /function [\S]+\((.*)\)/gm;
+        let funcRegex = /function\s+([a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*)?\s*\((.*?)\)\s*{/gms;
+        let catchRegex = /catch\s+\((.*?)\)\s*{/gms;
+        let regexClassnames = /(([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff\/]*)\s+\$[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/;
         let matches = [];
+        let matchesCLassnames = [];
+
         let phpClasses = [];
 
-        while (matches = regex.exec(text)) {
-            let parameters = matches[1].split(', ');
+        while (matches = funcRegex.exec(text)) {
+            if (matches[2] !== undefined) {
+                let parameters = matches[2].split(',');
 
-            for (let s of parameters) {
-                let phpClassName = s.substr(0, s.indexOf(' '));
+                parameters = parameters.map(element => {
+                    if (typeof element === 'string') {
+                        return element.trim();
+                    }
 
-                // Starts with capital letter
-                if (phpClassName && /[A-Z]/.test(phpClassName[0])) {
-                    phpClasses.push(phpClassName);
+                    return element;
+                });
+                for (let s of parameters) {
+                    if (matchesCLassnames = regexClassnames.exec(s)) {
+                        if (!this.typeHintPrimitives.includes(matchesCLassnames[2])) {
+                            phpClasses.push(matchesCLassnames[2]);
+                        }
+                    }
+                }
+            }
+        }
+
+        while (matches = catchRegex.exec(text)) {
+            if (matches[1] !== undefined) {
+                let parameters = matches[1].split(',');
+
+                parameters = parameters.map(element => {
+                    if (typeof element === 'string') {
+                        return element.trim();
+                    }
+
+                    return element;
+                });
+                for (let s of parameters) {
+                    if (matchesCLassnames = regexClassnames.exec(s)) {
+                        if (!this.typeHintPrimitives.includes(matchesCLassnames[2])) {
+                            phpClasses.push(matchesCLassnames[2]);
+                        }
+                    }
                 }
             }
         }
@@ -130,7 +176,9 @@ class Resolver {
         let phpClasses = [];
 
         while (matches = regex.exec(text)) {
-            phpClasses.push(matches[1]);
+            if (!this.classesToExclude.includes(matches[1])) {
+                phpClasses.push(matches[1]);
+            }
         }
 
         return phpClasses;
@@ -142,7 +190,9 @@ class Resolver {
         let phpClasses = [];
 
         while (matches = regex.exec(text)) {
-            phpClasses.push(matches[1]);
+            if (!this.classesToExclude.includes(matches[1])) {
+                phpClasses.push(matches[1]);
+            }
         }
 
         return phpClasses;
@@ -154,7 +204,9 @@ class Resolver {
         let phpClasses = [];
 
         while (matches = regex.exec(text)) {
-            phpClasses.push(matches[1]);
+            if (!this.classesToExclude.includes(matches[1])) {
+                phpClasses.push(matches[1]);
+            }
         }
 
         return phpClasses;
@@ -526,17 +578,26 @@ class Resolver {
 
         for (let i = 0; i < docs.length; i++) {
             let foundNS = docs[i].getText().match(/(namespace|(<\?php namespace))\s+(.+)?;/);
+            // If there is a namespace in the file, lets check the name of the class (if there is one)
+            // the name of the file is not enough to be sure that the extracted namespace is correct
             if (foundNS) {
-                let namespace = foundNS.pop();
-                let fqcn = `${namespace}\\${resolving}`;
+                let m;
+                let text = docs[i].getText();
+                while ((m = this.regexClassnames.exec(text)) !== null) {
+                    // if the class name from the file matches the resolving class name then the namespace is correct
+                    if (m[2] === resolving) {
+                        let namespace = foundNS.pop();
+                        let fqcn = `${namespace}\\${resolving}`;
 
-                // if (namespace === this.getNamespace()) {
-                //     continue;
-                // }
+                        // if (namespace === this.getNamespace()) {
+                        //     continue;
+                        // }
 
-                if (!parsedNamespaces.includes(fqcn)) {
-                    parsedNamespaces.push(fqcn);
-                    continue;
+                        if (!parsedNamespaces.includes(fqcn)) {
+                            parsedNamespaces.push(fqcn);
+                            // continue;
+                        }
+                    }
                 }
             }
         }
@@ -626,8 +687,17 @@ class Resolver {
     }
 
     hasConflict(resolving) {
+        if ('' === this.currentPHPFileHash) {
+            this.currentPHPFileHash = crypto.createHash('md5').update(this.activeEditor().document.getText()).digest('hex');
+        }
+
         if (this.importedClasses.length === 0) {
             this.getImportedPhpClasses(this.activeEditor().document.getText());
+        } else {
+            if (this.currentPHPFileHash !== crypto.createHash('md5').update(this.activeEditor().document.getText()).digest('hex')) {
+                // File source is changed - rebuild
+                this.getImportedPhpClasses(this.activeEditor().document.getText());
+            }
         }
 
         if (this.importedClasses.length === 0) {
@@ -652,6 +722,7 @@ class Resolver {
         };
 
         let multilineUseStatement = false;
+        let phpTagFound = false;
 
         for (let line = 0; line < this.activeEditor().document.lineCount; line++) {
             let text = this.activeEditor().document.lineAt(line).text;
@@ -666,19 +737,23 @@ class Resolver {
                 break;
             }
 
-            if ((declarationLines.PHPTag && line === declarationLines.PHPTag)) {
-                if (text.startsWith('/*')) {
-                    if (! /\/\*.*\*\//.test(text)) {
+            if (!phpTagFound) {
+
+                if ((declarationLines.PHPTag && line === declarationLines.PHPTag)) {
+                    if (text.startsWith('/*')) {
+                        if (! /\/\*.*\*\//.test(text)) {
+                            declarationLines.PHPTag = line + 1;
+                            continue;
+                        }
+                    }
+                    if (text.startsWith('* ') || text.startsWith(' *') || text.startsWith(' */') || text.startsWith('*/')) {
                         declarationLines.PHPTag = line + 1;
+                        if (text.startsWith(' */') || text.startsWith('*/')) {
+                            declarationLines.PHPTag++;
+                            phpTagFound = true;
+                        }
                         continue;
                     }
-                }
-                if (text.startsWith('* ') || text.startsWith(' *') || text.startsWith(' */') || text.startsWith('*/')) {
-                    declarationLines.PHPTag = line + 1;
-                    if (text.startsWith(' */') || text.startsWith('*/')) {
-                        declarationLines.PHPTag++;
-                    }
-                    continue;
                 }
             }
 
@@ -694,6 +769,8 @@ class Resolver {
                 }
             }
 
+            let className;
+
             if (text.startsWith('<?php') && declarationLines.PHPTag === 0) {
                 declarationLines.PHPTag = line + 1;
             } else if (text.startsWith('namespace ') || text.startsWith('<?php namespace')) {
@@ -705,9 +782,9 @@ class Resolver {
                 if (! /;/.test(text)) {
                     multilineUseStatement = true;
                 }
-            } else if (/(class|trait|interface)\s+\w+/.test(text)) {
+            } else if (className = this.regexClassnames.exec(text)) {
                 declarationLines.class = line + 1;
-                this.currentClass = text.match(/[class|trait|interface]\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/)[1];
+                this.currentClass = className[2];
             }
         }
 
