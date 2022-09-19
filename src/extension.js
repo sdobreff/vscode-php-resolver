@@ -1,8 +1,14 @@
 let vscode = require('vscode');
 let Resolver = require('./Resolver');
+let PHPBf = require('./PHPBf');
 
 function activate(context) {
     let resolver = new Resolver;
+    let phpbf = new PHPBf;
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.beautify', () => phpbf.fixPHP())
+    );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('phpResolver.import', async () => {

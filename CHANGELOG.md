@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.1.5
+- Fixed bug with missing package
+
+## 1.1.4
+- Small RE fix for extracting classes from functions
+
 ## 1.1.3
 - Function parameters classes extraction and exception catch classes parameter extraction improvements
 - Current class name extraction changed

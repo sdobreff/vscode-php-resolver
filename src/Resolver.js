@@ -117,7 +117,7 @@ class Resolver {
     }
 
     getFromFunctionParameters(text) {
-        let funcRegex = /function\s+([a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*)?\s*\((.*?)\)\s*{/gms;
+        let funcRegex = /function\s+([a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*)?\s*\((.*?)\)\s*{?/gms;
         let catchRegex = /catch\s+\((.*?)\)\s*{/gms;
         let regexClassnames = /(([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff\/]*)\s+\$[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/;
         let matches = [];

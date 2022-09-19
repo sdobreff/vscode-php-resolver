@@ -1,5 +1,9 @@
 # PHP Resolver
 
+[![Current Version](https://vsmarketplacebadge.apphb.com/version/StoilDobreff.php-resolver.svg)](https://marketplace.visualstudio.com/items?itemName=StoilDobreff.php-resolver.svg)
+[![Install Count](https://vsmarketplacebadge.apphb.com/installs/StoilDobreff.php-resolver.svg)](https://marketplace.visualstudio.com/items?itemName=StoilDobreff.php-resolver.svg)
+[![Open Issues](https://vsmarketplacebadge.apphb.com/rating/StoilDobreff.php-resolver.svg)](https://marketplace.visualstudio.com/items?itemName=StoilDobreff.php-resolver.svg)
+
 PHP Resolver can do different things with your PHP source files.
 
 - Automatically generates **PHP namespaces** for the given class based on the `composer.json`. Both **psr-4** and **psr-0** are supported.

@@ -2,7 +2,7 @@
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
 	"description": "Import, expand and collapse php namespaces",
-	"version": "1.1.3",
+	"version": "1.1.6",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE",
@@ -34,7 +34,8 @@
 		"onCommand:phpResolver.sort",
 		"onCommand:phpResolver.highlightNotImported",
 		"onCommand:phpResolver.highlightNotUsed",
-		"onCommand:phpResolver.generateNamespace"
+		"onCommand:phpResolver.generateNamespace",
+		"onCommand:phpResolver.beautify"
 	],
 	"main": "./src/extension",
 	"icon": "images/icon.png",
@@ -82,6 +83,12 @@
 					"command": "phpResolver.generateNamespace",
 					"alt": "phpResolver.generateNamespace",
 					"group": "0_php_resolver@7"
+				},
+				{
+					"when": "resourceLangId == php",
+					"command": "phpResolver.beautify",
+					"alt": "phpResolver.beautify",
+					"group": "0_php_resolver@8"
 				}
 			]
 		},
@@ -143,6 +150,21 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Auto highlight not imported and not used when a file is opened"
+				},
+				"phpResolver.phpBeautifierCommand": {
+					"type": "string",
+					"default": "/usr/local/bin/phpcbf",
+					"description": "Full path to the PHP beautifier command"
+				},
+				"phpResolver.phpSnifferCommand": {
+					"type": "string",
+					"default": "/usr/local/bin/phpcs",
+					"description": "Full path to the PHP sniffer command"
+				},
+				"phpResolver.phpStandards": {
+					"type": "string",
+					"default": "WordPress,WordPress-Extra,WordPress-Docs",
+					"description": "The standards to be used with the beautifier / sniffer. Comma separated."
 				}
 			}
 		},
@@ -222,11 +244,12 @@
 		"url": "https://github.com/sdobreff/vscode-php-resolver/issues"
 	},
 	"dependencies": {
+		"cross-spawn": "^7.0.3",
 		"node-natural-sort": "^0.8.6"
 	},
 	"devDependencies": {
-		"@types/vscode": "^1.68.0",
-		"@types/node": "16.x"
+		"@types/node": "16.x",
+		"@types/vscode": "^1.68.0"
 	},
 	"__metadata": {
 		"id": "5ef755e0-2c5f-4be6-893d-1d85e17228da",
