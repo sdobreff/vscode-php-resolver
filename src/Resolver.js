@@ -1,8 +1,9 @@
 let vscode = require('vscode');
-let builtInClasses = require('./classes');
+// let builtInClasses = require('./classes');
 let naturalSort = require('node-natural-sort');
 let libFS = require('fs').promises;
 let crypto = require('crypto');
+let { activeEditor, config, showMessage, showErrorMessage } = require('./Helpers');
 
 class Resolver {
     regexWordWithNamespace = new RegExp(/[a-zA-Z0-9\_\\]+/);
@@ -22,7 +23,7 @@ class Resolver {
         let selectedClass = resolving;
 
         if (resolving === undefined) {
-            return this.showErrorMessage(`$(issue-opened)  No class is selected.`);
+            return showErrorMessage(`No class is selected.`);
         }
 
         let fqcn;
@@ -45,7 +46,7 @@ class Resolver {
             if (files.length > 0) {
                 namespaces = await this.findNamespaces(selectedClass, files);
             } else {
-                return this.showErrorMessage(`$(issue-opened)  No files found for ${selectedClass}.`);
+                return showErrorMessage(`No files found for ${selectedClass}.`);
             }
 
             fqcn = await this.pickClass(namespaces);
@@ -57,7 +58,7 @@ class Resolver {
     }
 
     async importAll() {
-        let text = this.activeEditor().document.getText();
+        let text = activeEditor().document.getText();
         let phpClasses = this.getPhpClasses(text);
         let useStatements = this.getImportedPhpClasses(text);
 
@@ -213,7 +214,7 @@ class Resolver {
     }
 
     async highlightNotImported() {
-        let text = this.activeEditor().document.getText();
+        let text = activeEditor().document.getText();
         let phpClasses = this.getPhpClasses(text);
         let importedPhpClasses = this.getImportedPhpClasses(text);
 
@@ -230,16 +231,16 @@ class Resolver {
             let regex = new RegExp(notImported[i], 'g');
 
             while (matches = regex.exec(text)) {
-                let startPos = this.activeEditor().document.positionAt(matches.index);
+                let startPos = activeEditor().document.positionAt(matches.index);
 
                 // as js does not support regex look behinds we get results
                 // where the object name is in the middle of a string
                 // we should drop those
-                let textLine = this.activeEditor().document.lineAt(startPos);
+                let textLine = activeEditor().document.lineAt(startPos);
                 let charBeforeMatch = textLine.text.charAt(startPos.character - 1);
 
                 if (!/\w/.test(charBeforeMatch) && textLine.text.search(/namespace/) == -1) {
-                    let endPos = this.activeEditor().document.positionAt(matches.index + matches[0].length);
+                    let endPos = activeEditor().document.positionAt(matches.index + matches[0].length);
 
                     decorationOptions.push({
                         range: new vscode.Range(startPos, endPos),
@@ -260,11 +261,11 @@ class Resolver {
             }
         });
 
-        this.activeEditor().setDecorations(decorationType, decorationOptions);
+        activeEditor().setDecorations(decorationType, decorationOptions);
     }
 
     async highlightNotUsed() {
-        const text = this.activeEditor().document.getText();
+        const text = activeEditor().document.getText();
         const phpClasses = this.getPhpClasses(text);
         const importedPhpClasses = this.getImportedPhpClasses(text);
 
@@ -281,11 +282,11 @@ class Resolver {
             let regex = new RegExp(notUsed[i], 'g');
 
             while (matches = regex.exec(text)) {
-                let startPos = this.activeEditor().document.positionAt(matches.index);
-                let textLine = this.activeEditor().document.lineAt(startPos);
+                let startPos = activeEditor().document.positionAt(matches.index);
+                let textLine = activeEditor().document.lineAt(startPos);
 
                 if (textLine.text.search(/use/) != -1) {
-                    let endPos = this.activeEditor().document.positionAt(matches.index + matches[0].length);
+                    let endPos = activeEditor().document.positionAt(matches.index + matches[0].length);
 
                     decorationOptions.push({
                         range: new vscode.Range(startPos, endPos),
@@ -306,7 +307,7 @@ class Resolver {
             }
         });
 
-        this.activeEditor().setDecorations(decorationType, decorationOptions);
+        activeEditor().setDecorations(decorationType, decorationOptions);
     }
 
     getImportedPhpClasses(text) {
@@ -334,7 +335,7 @@ class Resolver {
         try {
             [useStatements, declarationLines] = this.getDeclarations(fqcn);
         } catch (error) {
-            return this.showErrorMessage(error.message);
+            return showErrorMessage(error.message);
         }
 
         let classBaseName = fqcn.match(/(\w+)/g).pop();
@@ -345,7 +346,7 @@ class Resolver {
         }
 
         if (this.hasConflict(classBaseName)) {
-            this.showErrorMessage(`This class / alias ${classBaseName} is imported.`);
+            showErrorMessage(`This class / alias ${classBaseName} is imported.`);
         } else if (replaceClassAfterImport) {
             this.importAndReplaceSelectedClass(selection, classBaseName, fqcn, declarationLines);
         } else {
@@ -357,7 +358,7 @@ class Resolver {
         let [prepend, append, insertLine] = this.getInsertLine(declarationLines);
         let classBaseName = fqcn.match(/(\w+)/g).pop();
 
-        let noGlobalsImport = this.config('dontImportGlobal');
+        let noGlobalsImport = config('dontImportGlobal');
         let parts = fqcn.split('\\');
         let isGlobal = false;
         if (parts.length === 1) {
@@ -369,21 +370,21 @@ class Resolver {
                 return;
             }
 
-            let fullText = this.activeEditor().document.getText();
+            let fullText = activeEditor().document.getText();
             // 'g' flag is for global search & 'm' flag is for multiline.
 
             const regex = new RegExp("[\\\\]?" + fqcn.replace(/\\/g, '\\\\') + "(?![A-za-z0–9_])", 'gm');
 
             let textReplace = fullText.replace(regex, ((isGlobal && noGlobalsImport) ? '\\' : '') + classBaseName);
-            let invalidRange = new vscode.Range(0, 0, this.activeEditor().document.lineCount, 0);
-            let validFullRange = this.activeEditor().document.validateRange(invalidRange);
+            let invalidRange = new vscode.Range(0, 0, activeEditor().document.lineCount, 0);
+            let validFullRange = activeEditor().document.validateRange(invalidRange);
 
-            await this.activeEditor().edit(editBuilder => {
+            await activeEditor().edit(editBuilder => {
                 editBuilder.replace(validFullRange, textReplace);
             }).catch(err => console.log(err));
         }
 
-        await this.activeEditor().edit(textEdit => {
+        await activeEditor().edit(textEdit => {
             if (null === alias) {
                 if (isGlobal) {
                     alias = classBaseName;
@@ -397,11 +398,11 @@ class Resolver {
             }
         });
 
-        if (this.config('autoSort')) {
+        if (config('autoSort')) {
             this.sortImports();
         }
 
-        this.showMessage(`$(check)  The class ${classBaseName} is imported.`);
+        showMessage(`The class ${classBaseName} is imported.`);
         this.importedClasses = [];
     }
 
@@ -415,7 +416,7 @@ class Resolver {
         }
 
         if (this.hasConflict(alias)) {
-            this.showErrorMessage(`$(issue-opened)  This alias (${alias}) is already in use.`);
+            showErrorMessage(`This alias (${alias}) is already in use.`);
 
             this.insertAsAlias(selection, fqcn, useStatements, declarationLines)
         } else if (alias !== '') {
@@ -432,24 +433,24 @@ class Resolver {
             return fqcn.endsWith(className);
         });
 
-        await this.activeEditor().edit(textEdit => {
+        await activeEditor().edit(textEdit => {
             textEdit.replace(
                 new vscode.Range(useStatement.line, 0, useStatement.line, useStatement.text.length),
                 `use ${fqcn};`
             );
         });
 
-        if (this.config('autoSort')) {
+        if (config('autoSort')) {
             this.sortImports();
         }
     }
 
     async replaceNamespaceStatement(namespace, line) {
         let realLine = line - 1;
-        let text = this.activeEditor().document.lineAt(realLine).text;
+        let text = activeEditor().document.lineAt(realLine).text;
         let newNs = text.replace(/namespace (.+)/, namespace);
 
-        await this.activeEditor().edit(textEdit => {
+        await activeEditor().edit(textEdit => {
             textEdit.replace(
                 new vscode.Range(realLine, 0, realLine, text.length),
                 newNs.trim()
@@ -467,7 +468,7 @@ class Resolver {
         let resolving = this.resolving(selection);
 
         if (resolving === null) {
-            return this.showErrorMessage(`$(issue-opened)  No class is selected.`);
+            return showErrorMessage(`No class is selected.`);
         }
 
         let selectedClass = resolving;
@@ -484,7 +485,7 @@ class Resolver {
         if (files.length > 0) {
             namespaces = await this.findNamespaces(selectedClass, files);
         } else {
-            return this.showErrorMessage(`$(issue-opened)  No files found for ${selectedClass}.`);
+            return showErrorMessage(`No files found for ${selectedClass}.`);
         }
 
         let fqcn = await this.pickClass(namespaces);
@@ -497,31 +498,31 @@ class Resolver {
     }
 
     async changeSelectedClass(selection, fqcn, prependBackslash = false) {
-        await this.activeEditor().edit(textEdit => {
+        await activeEditor().edit(textEdit => {
             textEdit.replace(
-                this.activeEditor().document.getWordRangeAtPosition(selection.active, this.regexWordWithNamespace),
-                (prependBackslash && this.config('leadingSeparator') ? '\\' : '') + fqcn
+                activeEditor().document.getWordRangeAtPosition(selection.active, this.regexWordWithNamespace),
+                (prependBackslash && config('leadingSeparator') ? '\\' : '') + fqcn
             );
         });
 
         let newPosition = new vscode.Position(selection.active.line, selection.active.character);
 
-        this.activeEditor().selection = new vscode.Selection(newPosition, newPosition);
+        activeEditor().selection = new vscode.Selection(newPosition, newPosition);
     }
 
     sortCommand() {
         try {
             this.sortImports();
         } catch (error) {
-            return this.showErrorMessage(error.message);
+            return showErrorMessage(error.message);
         }
 
-        this.showMessage('$(check)  Imports are sorted.');
+        showMessage('$(check)  Imports are sorted.');
     }
 
     findFiles(resolving) {
-        //return vscode.workspace.findFiles(`**/*wp*helper.php`, this.config('exclude'));
-        return vscode.workspace.findFiles(`**/${resolving}.php`, this.config('exclude'));
+        //return vscode.workspace.findFiles(`**/*wp*helper.php`, config('exclude'));
+        return vscode.workspace.findFiles(`**/${resolving}.php`, config('exclude'));
     }
 
     findNamespaces(resolving, files) {
@@ -532,7 +533,7 @@ class Resolver {
                 let parsedNamespaces = this.parseNamespaces(docs, resolving);
 
                 if (parsedNamespaces.length === 0) {
-                    return this.showErrorMessage(`$(circle-slash)  The class ${resolving} is not found.`);
+                    return showErrorMessage(`The class ${resolving} is not found.`);
                 }
 
                 resolve(parsedNamespaces);
@@ -641,11 +642,11 @@ class Resolver {
         let [useStatements,] = this.getDeclarations();
 
         if (useStatements.length <= 1) {
-            throw new Error('$(issue-opened)  Nothing to sort.');
+            throw new Error('Nothing to sort.');
         }
 
         let sortFunction = (a, b) => {
-            if (this.config('sortAlphabetically')) {
+            if (config('sortAlphabetically')) {
                 if (a.text.toLowerCase() < b.text.toLowerCase()) return -1;
                 if (a.text.toLowerCase() > b.text.toLowerCase()) return 1;
                 return 0;
@@ -659,10 +660,10 @@ class Resolver {
             }
         }
 
-        if (this.config('sortNatural')) {
+        if (config('sortNatural')) {
             let natsort = naturalSort({
                 caseSensitive: true,
-                order: this.config('sortAlphabetically') ? 'ASC' : 'DESC'
+                order: config('sortAlphabetically') ? 'ASC' : 'DESC'
             });
 
             sortFunction = (a, b) => {
@@ -672,7 +673,7 @@ class Resolver {
 
         let sorted = useStatements.slice().sort(sortFunction);
 
-        this.activeEditor().edit(textEdit => {
+        activeEditor().edit(textEdit => {
             for (let i = 0; i < sorted.length; i++) {
                 textEdit.replace(
                     new vscode.Range(useStatements[i].line, 0, useStatements[i].line, useStatements[i].text.length),
@@ -682,21 +683,17 @@ class Resolver {
         });
     }
 
-    activeEditor() {
-        return vscode.window.activeTextEditor;
-    }
-
     hasConflict(resolving) {
         if ('' === this.currentPHPFileHash) {
-            this.currentPHPFileHash = crypto.createHash('md5').update(this.activeEditor().document.getText()).digest('hex');
+            this.currentPHPFileHash = crypto.createHash('md5').update(activeEditor().document.getText()).digest('hex');
         }
 
         if (this.importedClasses.length === 0) {
-            this.getImportedPhpClasses(this.activeEditor().document.getText());
+            this.getImportedPhpClasses(activeEditor().document.getText());
         } else {
-            if (this.currentPHPFileHash !== crypto.createHash('md5').update(this.activeEditor().document.getText()).digest('hex')) {
+            if (this.currentPHPFileHash !== crypto.createHash('md5').update(activeEditor().document.getText()).digest('hex')) {
                 // File source is changed - rebuild
-                this.getImportedPhpClasses(this.activeEditor().document.getText());
+                this.getImportedPhpClasses(activeEditor().document.getText());
             }
         }
 
@@ -718,22 +715,24 @@ class Resolver {
             namespace: null,
             useStatement: null,
             class: null,
-            classComment: null
+            classComment: null,
+            commentAfterPhpTag: false,
+            strictTypes: null,
         };
 
         let multilineUseStatement = false;
         let phpTagFound = false;
 
-        for (let line = 0; line < this.activeEditor().document.lineCount; line++) {
-            let text = this.activeEditor().document.lineAt(line).text;
+        for (let line = 0; line < activeEditor().document.lineCount; line++) {
+            let text = activeEditor().document.lineAt(line).text;
 
             if (pickedClass !== null && text === `use ${pickedClass};`) {
-                throw new Error(`$(issue-opened)  The class ${pickedClass} is already imported.`);
+                throw new Error(`The class ${pickedClass} is already imported.`);
             }
 
             // break if all declarations were found.
             if (declarationLines.PHPTag && declarationLines.namespace &&
-                declarationLines.useStatement && declarationLines.class) {
+                declarationLines.useStatement && declarationLines.class && declarationLines.strictTypes) {
                 break;
             }
 
@@ -741,6 +740,7 @@ class Resolver {
 
                 if ((declarationLines.PHPTag && line === declarationLines.PHPTag)) {
                     if (text.startsWith('/*')) {
+                        declarationLines.commentAfterPhpTag = true;
                         if (! /\/\*.*\*\//.test(text)) {
                             declarationLines.PHPTag = line + 1;
                             continue;
@@ -773,6 +773,8 @@ class Resolver {
 
             if (text.startsWith('<?php') && declarationLines.PHPTag === 0) {
                 declarationLines.PHPTag = line + 1;
+            } else if (/declare\s*\(\s*strict_types/i.test(text)) {
+                declarationLines.strictTypes = line + 1;
             } else if (text.startsWith('namespace ') || text.startsWith('<?php namespace')) {
                 declarationLines.namespace = line + 1;
                 this.currentNameSpace = text.match(/namespace\s+((?:\\{1,2}\w+|\w+\\{0,2})(?:\w+\\{0,2})+)/)[1];
@@ -794,7 +796,7 @@ class Resolver {
     getInsertLine(declarationLines) {
         let prepend = declarationLines.PHPTag === 0 ? '' : '\n';
         let append = '\n';
-        let insertLine = declarationLines.PHPTag;
+        let insertLine = (null !== declarationLines.strictTypes) ? declarationLines.strictTypes : declarationLines.PHPTag;
 
         if (prepend === '' && declarationLines.namespace !== null) {
             prepend = '\n';
@@ -815,6 +817,15 @@ class Resolver {
             append = '\n\n';
         }
 
+        if (declarationLines.useStatement === null) {
+            prepend = '';
+            append = '\n\n';
+            if (declarationLines.namespace !== null) {
+                prepend = '\n';
+                append = '\n';
+            }
+        }
+
         return [prepend, append, insertLine];
     }
 
@@ -823,46 +834,24 @@ class Resolver {
             return selection;
         }
 
-        let wordRange = this.activeEditor().document.getWordRangeAtPosition(selection.active, this.regexWordWithNamespace);
+        let wordRange = activeEditor().document.getWordRangeAtPosition(selection.active, this.regexWordWithNamespace);
 
         if (wordRange === undefined) {
             return;
         }
 
-        return this.activeEditor().document.getText(wordRange);
-    }
-
-    config(key) {
-        return vscode.workspace.getConfiguration('phpResolver').get(key);
-    }
-
-    showMessage(message, error = false) {
-        if (this.config('showMessageOnStatusBar')) {
-            return vscode.window.setStatusBarMessage(message, 3000);
-        }
-
-        message = message.replace(/\$\(.+?\)\s\s/, '');
-
-        if (error) {
-            vscode.window.showErrorMessage(message);
-        } else {
-            vscode.window.showInformationMessage(message);
-        }
-    }
-
-    showErrorMessage(message) {
-        this.showMessage(message, true);
+        return activeEditor().document.getText(wordRange);
     }
 
     async generateNamespace() {
-        let currentUri = this.activeEditor().document.uri;
+        let currentUri = activeEditor().document.uri;
         let currentFile = currentUri.path;
         let currentPath = currentFile.substring(0, currentFile.lastIndexOf('/'));
 
         let workspaceFolder = vscode.workspace.getWorkspaceFolder(currentUri);
 
         if (workspaceFolder === undefined) {
-            return this.showErrorMessage('No folder opened in workspace, cannot find composer.json');
+            return showErrorMessage('No folder opened in workspace, cannot find composer.json');
         }
 
         //try to retrieve composer file by searching recursively into parent folders of the current file
@@ -877,7 +866,7 @@ class Resolver {
 
 
         if (!composerFile.length) {
-            return this.showErrorMessage('No composer.json file found, automatic namespace generation failed');
+            return showErrorMessage('No composer.json file found, automatic namespace generation failed');
         }
 
         composerFile = composerFile.pop().path;
@@ -894,7 +883,7 @@ class Resolver {
             }
 
             if (psr4 === undefined) {
-                return this.showErrorMessage('Neither psr-4 or psr-0 keys in composer.json autoload object, automatic namespace generation failed');
+                return showErrorMessage('Neither psr-4 or psr-0 keys in composer.json autoload object, automatic namespace generation failed');
             }
 
             let devPsr4 = (composerJson['autoload-dev'] || {})[devNS];
@@ -930,7 +919,7 @@ class Resolver {
             }
 
             if (namespaceBase === undefined) {
-                return this.showErrorMessage('Neither psr-4 or psr-0 keys in composer.json autoload object found that matches ' + currentRelativePath + ', automatic namespace generation failed');
+                return showErrorMessage('Neither psr-4 or psr-0 keys in composer.json autoload object found that matches ' + currentRelativePath + ', automatic namespace generation failed');
             }
 
             // let namespaceBase = Object.keys(psr4).filter(function (namespaceBase) {
@@ -964,14 +953,22 @@ class Resolver {
             try {
                 [, declarationLines] = this.getDeclarations();
             } catch (error) {
-                return this.showErrorMessage(error.message);
+                return showErrorMessage(error.message);
             }
 
             if (declarationLines.namespace !== null) {
                 this.replaceNamespaceStatement(namespace, declarationLines.namespace);
             } else {
-                this.activeEditor().edit(textEdit => {
-                    textEdit.insert(new vscode.Position(declarationLines.PHPTag - 1, 0), '\n' + namespace + '\n');
+                activeEditor().edit(textEdit => {
+                    if (null !== declarationLines.strictTypes) {
+                        textEdit.insert(new vscode.Position(declarationLines.strictTypes, 0), '\n' + namespace);
+                    } else {
+                        if (declarationLines.commentAfterPhpTag) {
+                            textEdit.insert(new vscode.Position(declarationLines.PHPTag - 1, 0), '\n' + namespace);
+                        } else {
+                            textEdit.insert(new vscode.Position(declarationLines.PHPTag, 0), '\n' + namespace);
+                        }
+                    }
                 });
             }
         });
@@ -982,7 +979,7 @@ class Resolver {
             const regex = /^.?namespace\s+(.*?);/gms;
             this.namespace = '';
 
-            let m = regex.exec(this.activeEditor().document.getText());
+            let m = regex.exec(activeEditor().document.getText());
 
             if (m !== null) {
                 this.namespace = m[1];
@@ -992,7 +989,7 @@ class Resolver {
     }
 
     async loadFileSize() {
-        let editor = vscode.window.activeTextEditor;
+        let editor = activeEditor();
         if (editor === undefined) {
             this.statusBarItem.text = 'Size Unknown';
         } else {

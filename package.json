@@ -1,16 +1,20 @@
 {
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
-	"description": "Import, expand and collapse php namespaces",
-	"version": "1.1.5",
+	"description": "Resolves most of your PHP problems - imports, expands and collapses php namespaces, monitors your PHP error log, uses PHP beautifier and PHP sniffer",
+	"version": "2.0.0",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE",
+	"versionChanges": "Now the extension supports PHP beautifier and PHP code sniffer as well as PHP error log parser and notifier. Click OK to find out more.",
+	"newVersion": "Thank you for installing the PHP Resolver extension. Click OK if you want to check out the repository.",
 	"engines": {
 		"vscode": "^1.68.0"
 	},
 	"categories": [
-		"Other"
+		"Programming Languages",
+		"Formatters",
+		"Linters"
 	],
 	"keywords": [
 		"php",
@@ -20,7 +24,13 @@
 		"import",
 		"collapse",
 		"expand",
-		"WordPress"
+		"WordPress",
+		"sniffer",
+		"beautifier",
+		"PHP error log",
+		"phpcs",
+		"phpcbf",
+		"error log"
 	],
 	"galleryBanner": {
 		"color": "#282c34",
@@ -32,8 +42,6 @@
 		"onCommand:phpResolver.importAll",
 		"onCommand:phpResolver.expand",
 		"onCommand:phpResolver.sort",
-		"onCommand:phpResolver.highlightNotImported",
-		"onCommand:phpResolver.highlightNotUsed",
 		"onCommand:phpResolver.generateNamespace",
 		"onCommand:phpResolver.beautify"
 	],
@@ -45,49 +53,31 @@
 				{
 					"when": "resourceLangId == php",
 					"command": "phpResolver.import",
-					"alt": "phpResolver.import",
 					"group": "0_php_resolver@1"
 				},
 				{
 					"when": "resourceLangId == php",
 					"command": "phpResolver.importAll",
-					"alt": "phpResolver.importAll",
 					"group": "0_php_resolver@2"
 				},
 				{
 					"when": "resourceLangId == php",
 					"command": "phpResolver.expand",
-					"alt": "phpResolver.expand",
 					"group": "0_php_resolver@3"
 				},
 				{
 					"when": "resourceLangId == php",
 					"command": "phpResolver.sort",
-					"alt": "phpResolver.sort",
 					"group": "0_php_resolver@4"
 				},
 				{
 					"when": "resourceLangId == php",
-					"command": "phpResolver.highlightNotImported",
-					"alt": "phpResolver.highlightNotImported",
-					"group": "0_php_resolver@5"
-				},
-				{
-					"when": "resourceLangId == php",
-					"command": "phpResolver.highlightNotUsed",
-					"alt": "phpResolver.highlightNotUsed",
-					"group": "0_php_resolver@6"
-				},
-				{
-					"when": "resourceLangId == php",
 					"command": "phpResolver.generateNamespace",
-					"alt": "phpResolver.generateNamespace",
 					"group": "0_php_resolver@7"
 				},
 				{
 					"when": "resourceLangId == php",
 					"command": "phpResolver.beautify",
-					"alt": "phpResolver.beautify",
 					"group": "0_php_resolver@8"
 				}
 			]
@@ -153,18 +143,33 @@
 				},
 				"phpResolver.phpBeautifierCommand": {
 					"type": "string",
-					"default": "/usr/local/bin/phpcbf",
-					"description": "Full path to the PHP beautifier command"
+					"default": "phpcbf",
+					"description": "Full path to the PHP beautifier command (phpcbf)"
 				},
 				"phpResolver.phpSnifferCommand": {
 					"type": "string",
-					"default": "/usr/local/bin/phpcs",
-					"description": "Full path to the PHP sniffer command"
+					"default": "phpcs",
+					"description": "Full path to the PHP sniffer command (phpcs)"
 				},
 				"phpResolver.phpStandards": {
 					"type": "string",
-					"default": "WordPress,WordPress-Extra,WordPress-Docs",
+					"default": "",
 					"description": "The standards to be used with the beautifier / sniffer. Comma separated."
+				},
+				"phpResolver.phpLogFile": {
+					"type": "string",
+					"default": "",
+					"description": "The PHP error log file - global or for the project."
+				},
+				"phpResolver.phpLogFilePathRemote": {
+					"type": "string",
+					"default": "",
+					"description": "If your log comes from remote source, using this you can map remote file system to the local one."
+				},
+				"phpResolver.phpLogFilePathLocal": {
+					"type": "string",
+					"default": "",
+					"description": "If your log comes from remote source, using this you can map local file system to the remote one."
 				}
 			}
 		},
@@ -186,16 +191,12 @@
 				"command": "phpResolver.sort"
 			},
 			{
-				"title": "Highlight Not Imported Classes",
-				"command": "phpResolver.highlightNotImported"
-			},
-			{
-				"title": "Highlight Not Used Classes",
-				"command": "phpResolver.highlightNotUsed"
-			},
-			{
 				"title": "Generate namespace for this file",
 				"command": "phpResolver.generateNamespace"
+			},
+			{
+				"title": "Beautify code (phpcbf)",
+				"command": "phpResolver.beautify"
 			}
 		],
 		"keybindings": [
@@ -220,19 +221,37 @@
 				"when": "editorTextFocus"
 			},
 			{
-				"command": "phpResolver.highlightNotImported",
-				"key": "ctrl+alt+n",
-				"when": "editorTextFocus"
-			},
-			{
-				"command": "phpResolver.highlightNotUsed",
-				"key": "ctrl+alt+u",
-				"when": "editorTextFocus"
-			},
-			{
 				"command": "phpResolver.generateNamespace",
 				"key": "ctrl+alt+g",
 				"when": "editorTextFocus"
+			},
+			{
+				"command": "phpResolver.beautify",
+				"key": "ctrl+alt+b",
+				"when": "editorTextFocus"
+			}
+		],
+		"languages": [
+			{
+				"id": "PHPLog",
+				"aliases": [
+					"php-log"
+				],
+				"configuration": "./log.configuration.json",
+				"mimetypes": [
+					"log",
+					"text/log",
+					"text/x-log",
+					"text/x-code-output",
+					"x-code-output"
+				]
+			}
+		],
+		"grammars": [
+			{
+				"language": "PHPLog",
+				"scopeName": "code.log",
+				"path": "./src/syntaxes/php-log.tmLanguage.xml"
 			}
 		]
 	},
@@ -245,7 +264,9 @@
 	},
 	"dependencies": {
 		"cross-spawn": "^7.0.3",
-		"node-natural-sort": "^0.8.6"
+		"node-natural-sort": "^0.8.6",
+		"node-notifier": "^10.0.0",
+		"tail": "^2.2.4"
 	},
 	"devDependencies": {
 		"@types/node": "16.x",

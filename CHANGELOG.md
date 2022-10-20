@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.0.0
+- Fixed bugs related to the RE and proper namespaces / classnames extraction
+- Introduced phpcf support
+- Introduced phpcbf support
+- Introduced PHP error log reader and notifications
+
 ## 1.1.5
 - Fixed bug with missing package
 
