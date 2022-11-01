@@ -1,5 +1,9 @@
 # Change Log
 
+## 2.0.1
+- Small fixes in RE for better PHP error log parsing
+- Excluded PHP reserved words from classes extraction
+
 ## 2.0.0
 - Fixed bugs related to the RE and proper namespaces / classnames extraction
 - Introduced phpcf support

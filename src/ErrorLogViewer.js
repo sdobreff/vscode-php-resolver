@@ -86,7 +86,10 @@ class ErrorLogViewer {
 
     parseLog(text) {
         let regex = /(#\d+\s)([\w\\\/\-\.\:\s]+)\((\d+)\)/gm;
-        let regexSingleLine = /\s+in\s+([\w\\\/\-\.\:\s]+)\s+on\s+line\s+(\d+)/gm;
+        /**
+         * Skip ... in use in ,,,
+         */
+        let regexSingleLine = /\s+in\s+(?!use\sin\s)([\w\\\/\-\.\:\s]+)\s+on\s+line\s+(\d+)/gm;
         let regexSingleThrown = /\s+in\s+([\w\\\/\-\.\:\s]+):(\d+)/gm;
 
         let newStr = text.replaceAll(regex, "$1file://$2#$3 ($3)");
@@ -107,7 +110,7 @@ class ErrorLogViewer {
 
     extractErrorFileAndLine(text) {
 
-        const words = text.split(' in ');
+        const words = text.split(" in ");
         text = words.pop();
 
         let regexSingleThrown = /([\w\\\/\-\.\:\s]+)[#:](\d+)/m;
@@ -115,7 +118,14 @@ class ErrorLogViewer {
 
         matches = regexSingleThrown.exec(text);
 
-        let errorFilePathLine = matches[1] + ':' + matches[2] + ':0';
+        if (null === matches) {
+            let regexSingleThrown = /([\w\\\/\-\.\:\s]+) on line (\d+)/m;
+            matches = [];
+            matches = regexSingleThrown.exec(text);
+        }
+
+        let errorFilePathLine = matches[1] + ":" + matches[2] + ":0";
+
         this.file = matches[1];
         this.line = matches[2];
 

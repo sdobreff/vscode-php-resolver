@@ -9,7 +9,7 @@ class Resolver {
     regexWordWithNamespace = new RegExp(/[a-zA-Z0-9\_\\]+/);
     regexClassnames = /(class|trait|interface)\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/gms;
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1);
-    typeHintPrimitives = ['self', 'parent', 'array', 'bool', 'float', 'int', 'string', 'object', 'mixed', '__CLASS__'];
+    typeHintPrimitives = ['self', 'parent', 'array', 'bool', 'float', 'int', 'string', 'object', 'mixed', '__CLASS__', 'callable'];
     namespace = null;
     importedClasses = [];
     // Stores the current text as hash - checking this, gives us an idea of the current source is changed

@@ -2,11 +2,11 @@
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
 	"description": "Resolves most of your PHP problems - imports, expands and collapses php namespaces, monitors your PHP error log, uses PHP beautifier and PHP sniffer",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE",
-	"versionChanges": "Now the extension supports PHP beautifier and PHP code sniffer as well as PHP error log parser and notifier. Click OK to find out more.",
+	"versionChanges": "Small fixes with RE and reserver PHP words. Click OK to find out more.",
 	"newVersion": "Thank you for installing the PHP Resolver extension. Click OK if you want to check out the repository.",
 	"engines": {
 		"vscode": "^1.68.0"
@@ -280,6 +280,7 @@
 		"targetPlatform": "undefined",
 		"isApplicationScoped": false,
 		"updated": true,
-		"preRelease": false
+		"preRelease": false,
+		"installedTimestamp": 1666423736365
 	}
 }
