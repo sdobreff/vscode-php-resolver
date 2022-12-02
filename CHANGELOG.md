@@ -1,5 +1,9 @@
 # Change Log
 
+## 2.0.2
+- Small fixes with namespace extraction
+- Fixes in the file size calculation
+
 ## 2.0.1
 - Small fixes in RE for better PHP error log parsing
 - Excluded PHP reserved words from classes extraction

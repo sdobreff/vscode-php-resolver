@@ -92,10 +92,17 @@ class ErrorLogViewer {
         let regexSingleLine = /\s+in\s+(?!use\sin\s)([\w\\\/\-\.\:\s]+)\s+on\s+line\s+(\d+)/gm;
         let regexSingleThrown = /\s+in\s+([\w\\\/\-\.\:\s]+):(\d+)/gm;
 
-        let newStr = text.replaceAll(regex, "$1file://$2#$3 ($3)");
+        let protocol = 'file://';
+        if (false === config('addProtocolToLog')) {
+            protocol = '';
+        }
 
-        newStr = newStr.replaceAll(regexSingleLine, " in file://$1#$2 on line $2");
-        newStr = newStr.replaceAll(regexSingleThrown, " in file://$1#$2 $2");
+        let separator = config('lineNumberSeparator');
+
+        let newStr = text.replaceAll(regex, "$1" + protocol + "$2" + separator + "$3 ($3)");
+
+        newStr = newStr.replaceAll(regexSingleLine, " in " + protocol + "$1" + separator + "$2 on line $2");
+        newStr = newStr.replaceAll(regexSingleThrown, " in " + protocol + "$1" + separator + "$2 $2");
 
         let remoteMap = config('phpLogFilePathRemote');
         let localMap = config('phpLogFilePathLocal');

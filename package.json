@@ -2,11 +2,11 @@
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
 	"description": "Resolves most of your PHP problems - imports, expands and collapses php namespaces, monitors your PHP error log, uses PHP beautifier and PHP sniffer",
-	"version": "2.0.1",
+	"version": "2.0.2",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE",
-	"versionChanges": "Small fixes with RE and reserver PHP words. Click OK to find out more.",
+	"versionChanges": "Fixed file size calculation, namespace fixes",
 	"newVersion": "Thank you for installing the PHP Resolver extension. Click OK if you want to check out the repository.",
 	"engines": {
 		"vscode": "^1.68.0"
@@ -170,6 +170,16 @@
 					"type": "string",
 					"default": "",
 					"description": "If your log comes from remote source, using this you can map local file system to the remote one."
+				},
+				"phpResolver.addProtocolToLog": {
+					"type": "boolean",
+					"default": true,
+					"description": "Different versions of the vscode are acting differently on resolving files links. From here you can remove 'file://' protocol from the log file output"
+				},
+				"phpResolver.lineNumberSeparator": {
+					"type": "string",
+					"default": "#",
+					"description": "Different versions of the vscode are using different way to recognize line numbers in the links. From here you can change the separator (usually # or :)"
 				}
 			}
 		},
@@ -281,6 +291,6 @@
 		"isApplicationScoped": false,
 		"updated": true,
 		"preRelease": false,
-		"installedTimestamp": 1666423736365
+		"installedTimestamp": 1667455887556
 	}
 }

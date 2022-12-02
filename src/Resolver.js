@@ -1,7 +1,7 @@
 let vscode = require('vscode');
 // let builtInClasses = require('./classes');
 let naturalSort = require('node-natural-sort');
-let libFS = require('fs').promises;
+let libFS = require('fs');
 let crypto = require('crypto');
 let { activeEditor, config, showMessage, showErrorMessage } = require('./Helpers');
 
