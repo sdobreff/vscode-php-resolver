@@ -1,4 +1,3 @@
-let vscode = require('vscode');
 const path = require('path');
 let fs = require('fs');
 let { USER_CONFIG_FILE_NAME, isNewerVersion, showExtensionMessage } = require('./Helpers');

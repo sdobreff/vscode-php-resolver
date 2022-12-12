@@ -1,5 +1,9 @@
 # Change Log
 
+## 2.1
+- Added support for php-cs-fixer
+- Small bug fixes
+
 ## 2.0.2
 - Small fixes with namespace extraction
 - Fixes in the file size calculation

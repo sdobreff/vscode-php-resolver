@@ -2,11 +2,11 @@
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
 	"description": "Resolves most of your PHP problems - imports, expands and collapses php namespaces, monitors your PHP error log, uses PHP beautifier and PHP sniffer",
-	"version": "2.0.2",
+	"version": "2.1.0",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE",
-	"versionChanges": "Fixed file size calculation, namespace fixes",
+	"versionChanges": "Added php-cs-fixer support",
 	"newVersion": "Thank you for installing the PHP Resolver extension. Click OK if you want to check out the repository.",
 	"engines": {
 		"vscode": "^1.68.0"
@@ -30,7 +30,9 @@
 		"PHP error log",
 		"phpcs",
 		"phpcbf",
-		"error log"
+		"error log",
+		"php-cs-fixer",
+		"linter"
 	],
 	"galleryBanner": {
 		"color": "#282c34",
@@ -43,7 +45,8 @@
 		"onCommand:phpResolver.expand",
 		"onCommand:phpResolver.sort",
 		"onCommand:phpResolver.generateNamespace",
-		"onCommand:phpResolver.beautify"
+		"onCommand:phpResolver.beautify",
+		"onCommand:phpResolver.fixer"
 	],
 	"main": "./src/extension",
 	"icon": "images/icon.png",
@@ -79,6 +82,11 @@
 					"when": "resourceLangId == php",
 					"command": "phpResolver.beautify",
 					"group": "0_php_resolver@8"
+				},
+				{
+					"when": "resourceLangId == php",
+					"command": "phpResolver.fixer",
+					"group": "0_php_resolver@9"
 				}
 			]
 		},
@@ -151,10 +159,135 @@
 					"default": "phpcs",
 					"description": "Full path to the PHP sniffer command (phpcs)"
 				},
+				"phpResolver.phpCsFixerCommand": {
+					"type": "string",
+					"default": "php-cs-fixer",
+					"description": "Full path to the PHP fixer command (php-cs-fixer)"
+				},
 				"phpResolver.phpStandards": {
 					"type": "string",
 					"default": "",
 					"description": "The standards to be used with the beautifier / sniffer. Comma separated."
+				},
+				"phpResolver.fixerConfigString": {
+					"type": "string",
+					"editPresentation": "multilineText",
+					"default": "<?php\n\nreturn (new PhpCsFixer\\Config())\n    ->setRules([\n   '@PSR12' => false, \n   '@Symfony' => true, \n   'indentation_type' => true, \n   'array_indentation' => true, \n   'array_syntax' => [\n         'syntax' => 'long' \n      ], \n   'combine_consecutive_unsets' => true, \n   'class_attributes_separation' => [\n            'elements' => [\n               'method' => 'one' \n            ] \n         ], \n   'multiline_whitespace_before_semicolons' => false, \n   'single_quote' => true, \n   'blank_line_after_opening_tag' => true, \n   'blank_line_before_statement' => true, \n   'braces' => [\n                  'allow_single_line_closure' => true, \n                  'position_after_functions_and_oop_constructs' => 'same' \n               ], \n   'cast_spaces' => false, \n   'class_definition' => [\n                     'single_line' => true \n                  ], \n   'concat_space' => [\n                        'spacing' => 'one' \n                     ], \n   'declare_equal_normalize' => true, \n   'function_typehint_space' => true, \n   'single_line_comment_style' => [\n                           'comment_types' => [\n                              'hash' \n                           ] \n                        ], \n   'include' => true, \n   'lowercase_cast' => true, \n   'native_function_casing' => true, \n   'new_with_braces' => true, \n   'no_blank_lines_after_class_opening' => true, \n   'no_blank_lines_after_phpdoc' => true, \n   'no_blank_lines_before_namespace' => false, \n   'no_empty_comment' => true, \n   'no_empty_phpdoc' => true, \n   'no_empty_statement' => true, \n   'no_extra_blank_lines' => [\n                                 'tokens' => [\n                                    'curly_brace_block', \n                                    'extra', \n                                    'parenthesis_brace_block', \n                                    'square_brace_block', \n                                    'throw', \n                                    'use' \n                                 ] \n                              ], \n   'no_leading_import_slash' => true, \n   'no_leading_namespace_whitespace' => true, \n   'no_mixed_echo_print' => [\n                                       'use' => 'echo' \n                                    ], \n   'no_multiline_whitespace_around_double_arrow' => true, \n   'no_short_bool_cast' => true, \n   'no_singleline_whitespace_before_semicolons' => true, \n   'no_spaces_around_offset' => true, \n   'no_trailing_comma_in_list_call' => true, \n   'no_trailing_comma_in_singleline_array' => true, \n   'no_unneeded_control_parentheses' => true, \n   'no_unused_imports' => true, \n   'no_whitespace_before_comma_in_array' => true, \n   'no_whitespace_in_blank_line' => true, \n   'normalize_index_brace' => true, \n   'object_operator_without_whitespace' => true, \n   'php_unit_fqcn_annotation' => true, \n   'phpdoc_align' => true, \n   'phpdoc_annotation_without_dot' => false, \n   'phpdoc_indent' => true, \n   'general_phpdoc_tag_rename' => true, \n   'phpdoc_no_access' => true, \n   'phpdoc_no_alias_tag' => true, \n   'phpdoc_no_empty_return' => false, \n   'phpdoc_no_package' => false, \n   'phpdoc_no_useless_inheritdoc' => true, \n   'phpdoc_return_self_reference' => true, \n   'phpdoc_scalar' => true, \n   'phpdoc_separation' => true, \n   'phpdoc_single_line_var_spacing' => true, \n   'phpdoc_summary' => true, \n   'phpdoc_to_comment' => true, \n   'phpdoc_trim' => true, \n   'phpdoc_types' => true, \n   'phpdoc_var_without_name' => true, \n   'increment_style' => true, \n   'return_type_declaration' => true, \n   'short_scalar_cast' => true, \n   'single_blank_line_before_namespace' => true, \n   'single_class_element_per_statement' => true, \n   'space_after_semicolon' => true, \n   'standardize_not_equals' => true, \n   'ternary_operator_spaces' => true, \n   'trailing_comma_in_multiline' => [\n                                          'elements' => [\n                                             'arrays' \n                                          ] \n                                       ], \n   'trim_array_spaces' => false, \n   'unary_operator_spaces' => false, \n   'whitespace_after_comma_in_array' => true, \n   'single_blank_line_at_eof' => false \n])\n     ->setIndent('\t')\n    ->setLineEnding('\n')\n;",
+					"description": "The fixer config PHP file."
+				},
+				"phpResolver.phpFixerRules": {
+					"type": "object",
+					"default": {
+						"@PSR12": false,
+						"@Symfony": true,
+						"indentation_type": true,
+						"array_indentation": true,
+						"array_syntax": {
+							"syntax": "long"
+						},
+						"combine_consecutive_unsets": true,
+						"class_attributes_separation": {
+							"elements": {
+								"method": "one"
+							}
+						},
+						"multiline_whitespace_before_semicolons": false,
+						"single_quote": true,
+						"blank_line_after_opening_tag": true,
+						"blank_line_before_statement": true,
+						"braces": {
+							"allow_single_line_closure": true,
+							"position_after_functions_and_oop_constructs": "same"
+						},
+						"cast_spaces": false,
+						"class_definition": {
+							"single_line": true
+						},
+						"concat_space": {
+							"spacing": "one"
+						},
+						"declare_equal_normalize": true,
+						"function_typehint_space": true,
+						"single_line_comment_style": {
+							"comment_types": [
+								"hash"
+							]
+						},
+						"include": true,
+						"lowercase_cast": true,
+						"native_function_casing": true,
+						"new_with_braces": true,
+						"no_blank_lines_after_class_opening": true,
+						"no_blank_lines_after_phpdoc": true,
+						"no_blank_lines_before_namespace": false,
+						"no_empty_comment": true,
+						"no_empty_phpdoc": true,
+						"no_empty_statement": true,
+						"no_extra_blank_lines": {
+							"tokens": [
+								"curly_brace_block",
+								"extra",
+								"parenthesis_brace_block",
+								"square_brace_block",
+								"throw",
+								"use"
+							]
+						},
+						"no_leading_import_slash": true,
+						"no_leading_namespace_whitespace": true,
+						"no_mixed_echo_print": {
+							"use": "echo"
+						},
+						"no_multiline_whitespace_around_double_arrow": true,
+						"no_short_bool_cast": true,
+						"no_singleline_whitespace_before_semicolons": true,
+						"no_spaces_around_offset": true,
+						"no_trailing_comma_in_list_call": true,
+						"no_trailing_comma_in_singleline_array": true,
+						"no_unneeded_control_parentheses": true,
+						"no_unused_imports": true,
+						"no_whitespace_before_comma_in_array": true,
+						"no_whitespace_in_blank_line": true,
+						"normalize_index_brace": true,
+						"object_operator_without_whitespace": true,
+						"php_unit_fqcn_annotation": true,
+						"phpdoc_align": true,
+						"phpdoc_annotation_without_dot": false,
+						"phpdoc_indent": true,
+						"general_phpdoc_tag_rename": true,
+						"phpdoc_no_access": true,
+						"phpdoc_no_alias_tag": true,
+						"phpdoc_no_empty_return": false,
+						"phpdoc_no_package": false,
+						"phpdoc_no_useless_inheritdoc": true,
+						"phpdoc_return_self_reference": true,
+						"phpdoc_scalar": true,
+						"phpdoc_separation": true,
+						"phpdoc_single_line_var_spacing": true,
+						"phpdoc_summary": true,
+						"phpdoc_to_comment": true,
+						"phpdoc_trim": true,
+						"phpdoc_types": true,
+						"phpdoc_var_without_name": true,
+						"increment_style": true,
+						"return_type_declaration": true,
+						"short_scalar_cast": true,
+						"single_blank_line_before_namespace": true,
+						"single_class_element_per_statement": true,
+						"space_after_semicolon": true,
+						"standardize_not_equals": true,
+						"ternary_operator_spaces": true,
+						"trailing_comma_in_multiline": {
+							"elements": [
+								"arrays"
+							]
+						},
+						"trim_array_spaces": false,
+						"unary_operator_spaces": false,
+						"whitespace_after_comma_in_array": true,
+						"single_blank_line_at_eof": false
+					},
+					"description": "The rules to be used with the php-cs-fixer."
 				},
 				"phpResolver.phpLogFile": {
 					"type": "string",
@@ -207,6 +340,10 @@
 			{
 				"title": "Beautify code (phpcbf)",
 				"command": "phpResolver.beautify"
+			},
+			{
+				"title": "Fix code (php-cs-fixer)",
+				"command": "phpResolver.fixer"
 			}
 		],
 		"keybindings": [
@@ -238,6 +375,11 @@
 			{
 				"command": "phpResolver.beautify",
 				"key": "ctrl+alt+b",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "phpResolver.fixer",
+				"key": "ctrl+alt+f",
 				"when": "editorTextFocus"
 			}
 		],

@@ -1,6 +1,7 @@
 let vscode = require('vscode');
 let Resolver = require('./Resolver');
 let PHPBf = require('./PHPBf');
+let PHPCsFixer = require('./PHPCsFixer');
 let PHPCs = require('./PHPCs');
 let Logger = require('./Logger');
 let VersionNotifier = require('./VersionNotifier');
@@ -10,6 +11,7 @@ let { activeEditor, config } = require('./Helpers');
 let errorLogger = null;
 
 let phpbf = null;
+let phpfixer = null;
 let phpcs = null;
 let phpBeautyFormatter = null;
 let logger = new Logger;
@@ -65,6 +67,19 @@ function updateConfig(context) {
         }
         delete phpbf;
         phpbf = null;
+    }
+
+    if ('' !== config('phpCsFixerCommand')) {
+        if (null === phpfixer) {
+            phpfixer = new PHPCsFixer();
+            phpfixer.setLogger(logger);
+        }
+
+        logger.logMessage('Fixer path is set - php-cs-fixer is registered', 'INFO');
+    } else {
+        logger.logMessage('Fixer path is unset - php-cs-fixer is unregistered', 'INFO');
+        delete phpfixer;
+        phpfixer = null;
     }
 
     if ('' !== config('phpSnifferCommand')) {
@@ -156,8 +171,19 @@ function activate(context) {
         logger.logMessage('Beautifier path is not set - beautifier is not registered', 'INFO');
     }
 
+    if ('' !== config('phpCsFixerCommand')) {
+        phpfixer = new PHPCsFixer();
+        phpfixer.setLogger(logger);
+    } else {
+        logger.logMessage('PHP CS fixer path is not set - fixer is not registered', 'INFO');
+    }
+
     context.subscriptions.push(
         vscode.commands.registerCommand('phpResolver.beautify', () => phpbf.fixPHP())
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.fixer', () => phpfixer.fixPHP())
     );
 
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((event) => {
