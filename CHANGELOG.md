@@ -1,5 +1,8 @@
 # Change Log
 
+## 2.1.1
+- Fixed bug with the extension initialization on empty VSCode editor
+
 ## 2.1
 - Added support for php-cs-fixer
 - Small bug fixes

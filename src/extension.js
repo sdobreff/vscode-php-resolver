@@ -194,7 +194,7 @@ function activate(context) {
         phpcs = new PHPCs;
         phpcs.setLogger(logger);
 
-        if (activeEditor().document.languageId === 'php') {
+        if (activeEditor() && activeEditor().document.languageId === 'php') {
             logger.logMessage('Starting fixer on currently open file', 'INFO');
             phpcs.fixPHP();
         }
