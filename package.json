@@ -2,11 +2,11 @@
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
 	"description": "Resolves most of your PHP problems - imports, expands and collapses php namespaces, monitors your PHP error log, uses PHP beautifier and PHP sniffer",
-	"version": "2.1.1",
+	"version": "2.1.2",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE",
-	"versionChanges": "Fixed bug with extension initialization",
+	"versionChanges": "Fixed bugs with removing namespaces when full classname is needed",
 	"newVersion": "Thank you for installing the PHP Resolver extension. Click OK if you want to check out the repository.",
 	"engines": {
 		"vscode": "^1.68.0"
@@ -46,7 +46,8 @@
 		"onCommand:phpResolver.sort",
 		"onCommand:phpResolver.generateNamespace",
 		"onCommand:phpResolver.beautify",
-		"onCommand:phpResolver.fixer"
+		"onCommand:phpResolver.fixer",
+		"onCommand:phpResolver.clearErrorChannel"
 	],
 	"main": "./src/extension",
 	"icon": "images/icon.png",
@@ -87,6 +88,11 @@
 					"when": "resourceLangId == php",
 					"command": "phpResolver.fixer",
 					"group": "0_php_resolver@9"
+				},
+				{
+					"when": "resourceLangId == php",
+					"command": "phpResolver.clearErrorChannel",
+					"group": "0_php_resolver@10"
 				}
 			]
 		},
@@ -313,6 +319,11 @@
 					"type": "string",
 					"default": "#",
 					"description": "Different versions of the vscode are using different way to recognize line numbers in the links. From here you can change the separator (usually # or :)"
+				},
+				"phpResolver.errorLogTruncateSize": {
+					"type": "integer",
+					"default": "1",
+					"description": "Automatically truncate error log file when it reaches the size (in megabytes). 0 means no truncation."
 				}
 			}
 		},
@@ -344,6 +355,10 @@
 			{
 				"title": "Fix code (php-cs-fixer)",
 				"command": "phpResolver.fixer"
+			},
+			{
+				"title": "Clear error log channel",
+				"command": "phpResolver.clearErrorChannel"
 			}
 		],
 		"keybindings": [
@@ -380,6 +395,11 @@
 			{
 				"command": "phpResolver.fixer",
 				"key": "ctrl+alt+f",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "phpResolver.clearErrorChannel",
+				"key": "ctrl+alt+c",
 				"when": "editorTextFocus"
 			}
 		],
@@ -433,6 +453,6 @@
 		"isApplicationScoped": false,
 		"updated": true,
 		"preRelease": false,
-		"installedTimestamp": 1667455887556
+		"installedTimestamp": 1670835370103
 	}
 }

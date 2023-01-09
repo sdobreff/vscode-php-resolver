@@ -6,6 +6,7 @@ let PHPCs = require('./PHPCs');
 let Logger = require('./Logger');
 let VersionNotifier = require('./VersionNotifier');
 let ErrorLogViewer = require('./ErrorLogViewer');
+let FileSize = require('./FileSize');
 let { activeEditor, config } = require('./Helpers');
 
 let errorLogger = null;
@@ -17,6 +18,7 @@ let phpBeautyFormatter = null;
 let logger = new Logger;
 let onSaveSniff = null;
 let onChangeSniff = null;
+let clearErrorOutput = null;
 
 function updateConfig(context) {
 
@@ -35,6 +37,20 @@ function updateConfig(context) {
         errorLogger.destroy();
         delete errorLogger;
         errorLogger = null;
+    }
+
+    if ('' !== config('phpLogFile')) {
+        if (clearErrorOutput === null) {
+            clearErrorOutput = vscode.commands.registerCommand('phpResolver.clearErrorChannel', () => errorLogger.clearErrorChannel());
+            context.subscriptions.push(
+                clearErrorOutput
+            );
+            logger.logMessage('Clear output chanel command registered', 'INFO');
+        }
+    } else if ('' === config('phpLogFile') && clearErrorOutput !== null) {
+        clearErrorOutput.dispose();
+        clearErrorOutput = null;
+        logger.logMessage('Clear output chanel command deregistered', 'INFO');
     }
 
     if ('' !== config('phpBeautifierCommand')) {
@@ -141,6 +157,7 @@ function updateConfig(context) {
 
 function activate(context) {
     let resolver = new Resolver;
+    let fileSize = new FileSize;
 
     if ('' !== config('phpLogFile')) {
         errorLogger = new ErrorLogViewer;
@@ -187,7 +204,7 @@ function activate(context) {
     );
 
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((event) => {
-        resolver.loadFileSize();
+        fileSize.loadFileSize();
     }));
 
     if ('' !== config('phpSnifferCommand')) {
@@ -261,6 +278,16 @@ function activate(context) {
         vscode.commands.registerCommand('phpResolver.generateNamespace', () => resolver.generateNamespace())
     );
 
+    if ('' !== config('phpLogFile')) {
+        if (clearErrorOutput === null) {
+            clearErrorOutput = vscode.commands.registerCommand('phpResolver.clearErrorChannel', () => errorLogger.clearErrorChannel());
+            context.subscriptions.push(
+                clearErrorOutput
+            );
+            logger.logMessage('Clear output chanel command registered', 'INFO');
+        }
+    }
+
     context.subscriptions.push(vscode.workspace.onWillSaveTextDocument((event) => {
         if (
             event &&
@@ -292,7 +319,7 @@ function activate(context) {
     }));
 
     // context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((event) => {
-    //     resolver.loadFileSize();
+    //     fileSize.loadFileSize();
 
     //     // if (
     //     //     event &&
@@ -319,7 +346,7 @@ function activate(context) {
     // context.subscriptions.push(logger);
 
     logger.logMessage('Starting file size', 'INFO');
-    resolver.loadFileSize();
+    fileSize.loadFileSize();
 
     // var onOpen = vscode.workspace.onDidOpenTextDocument((document) => {
     //     if (document.languageId === 'php') {
@@ -330,7 +357,7 @@ function activate(context) {
 
     onSaveSniff = vscode.workspace.onDidSaveTextDocument((document) => {
         logger.logMessage('Document is saved - loading file size', 'INFO');
-        resolver.loadFileSize();
+        fileSize.loadFileSize();
         // if (document.languageId === 'php') {
         //     logger.logMessage('Document is saved - starting code sniffer', 'INFO');
         //     phpcs.fixPHP();

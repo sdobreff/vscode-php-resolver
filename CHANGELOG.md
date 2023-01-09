@@ -1,5 +1,9 @@
 # Change Log
 
+## 2.1.2
+- Added option for clearing the error log console
+- Fixed problem with removing the namespace from class when whole classname is needed (in quotes)
+
 ## 2.1.1
 - Fixed bug with the extension initialization on empty VSCode editor
 

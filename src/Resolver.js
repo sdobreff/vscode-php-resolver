@@ -1,14 +1,12 @@
 let vscode = require('vscode');
 // let builtInClasses = require('./classes');
 let naturalSort = require('node-natural-sort');
-let libFS = require('fs');
 let crypto = require('crypto');
 let { activeEditor, config, showMessage, showErrorMessage } = require('./Helpers');
 
 class Resolver {
     regexWordWithNamespace = new RegExp(/[a-zA-Z0-9\_\\]+/);
     regexClassnames = /(class|trait|interface)\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/gms;
-    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1);
     typeHintPrimitives = ['self', 'parent', 'array', 'bool', 'float', 'int', 'string', 'object', 'mixed', '__CLASS__', 'callable'];
     namespace = null;
     importedClasses = [];
@@ -373,7 +371,7 @@ class Resolver {
             let fullText = activeEditor().document.getText();
             // 'g' flag is for global search & 'm' flag is for multiline.
 
-            const regex = new RegExp("[\\\\]?" + fqcn.replace(/\\/g, '\\\\') + "(?![A-za-z0–9_])", 'gm');
+            const regex = new RegExp("(?!['|\"])[\\\\]?" + fqcn.replace(/\\/g, '\\\\') + "(?![A-za-z0–9_])(?!['|\"])", 'gm');
 
             let textReplace = fullText.replace(regex, ((isGlobal && noGlobalsImport) ? '\\' : '') + classBaseName);
             let invalidRange = new vscode.Range(0, 0, activeEditor().document.lineCount, 0);
@@ -459,7 +457,7 @@ class Resolver {
     }
 
     async importAndReplaceSelectedClass(selection, replacingClassName, fqcn, declarationLines, alias = null) {
-        await this.changeSelectedClass(selection, replacingClassName, false);
+        // await this.changeSelectedClass(selection, replacingClassName, false);
 
         this.insert(fqcn, declarationLines, alias);
     }
@@ -986,29 +984,6 @@ class Resolver {
             }
         }
         return this.namespace;
-    }
-
-    async loadFileSize() {
-        let editor = activeEditor();
-        if (editor === undefined) {
-            this.statusBarItem.text = 'Size Unknown';
-        } else {
-            await libFS.stat(editor.document.uri.path, (error, stats) => {
-                if (error) {
-                    this.statusBarItem.text = this.bytesToSize(0);
-                } else {
-                    this.statusBarItem.text = this.bytesToSize(stats.size);
-                }
-            });
-        }
-        this.statusBarItem.show();
-    }
-
-    bytesToSize(bytes) {
-        var sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-        if (bytes == 0) return '0 Byte';
-        var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
-        return +(Math.round(bytes / Math.pow(1024, i) + "e+2") + "e-2") + ' ' + sizes[i]; //Math.round(bytes / Math.pow(1024, i)) + ' ' + sizes[i];
     }
 }
 

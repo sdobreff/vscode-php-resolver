@@ -378,8 +378,12 @@ Search these commands by the title on command palette.
         "command": "phpResolver.beautify"
     },
     {
-	"title": "Fix code (php-cs-fixer)",
-	"command": "phpResolver.fixer"
+        "title": "Fix code (php-cs-fixer)",
+        "command": "phpResolver.fixer"
+    },
+    {
+        "title": "Clear error log channel",
+        "command": "phpResolver.clearErrorChannel"
     }
 ]
 ```
@@ -411,6 +415,7 @@ You can override these default settings according to your needs.
     "phpResolver.lineNumberSeparator": "#",        // Different versions of the vscode are using different way to recognize line numbers in the links. From here you can change the separator ( usually # or : )
     "phpResolver.fixerConfigString": "..."         // The PHP object class which extends the php-cs-fixer. Check above - "default class source code".
     "phpResolver.phpFixerRules": object,           // JSON formatted fixer rules. Check above - PHP cs fixer.
+    "phpResolver.errorLogTruncateSize": 1,         // Integer value (in megabytes), if error log file get over that size, it will be automatically truncated (to 0 bytes).
 }
 ```
 
@@ -462,8 +467,13 @@ You can override these default keybindings on your `keybindings.json`.
     },
     {
         "command": "phpResolver.fixer",
-	"key": "ctrl+alt+f",
-	"when": "editorTextFocus"
+        "key": "ctrl+alt+f",
+        "when": "editorTextFocus"
+    },
+    {
+        "command": "phpResolver.clearErrorChannel",
+        "key": "ctrl+alt+c",
+        "when": "editorTextFocus"
     }
 ]
 ```

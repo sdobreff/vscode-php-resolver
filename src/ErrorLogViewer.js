@@ -2,6 +2,7 @@ let vscode = require('vscode');
 let Tail = require('tail').Tail;
 const { config } = require('./Helpers');
 const notifier = require('node-notifier');
+let FileSize = require('./FileSize');
 
 class ErrorLogViewer {
     file = '';
@@ -15,8 +16,18 @@ class ErrorLogViewer {
         let logFile = config('phpLogFile');
         try {
             let tail = new Tail(logFile);
-            tail.on('line', (data) => {
+            tail.on('line', async (data) => {
                 this.outputChannel.appendLine(this.parseLog(data));
+                let truncateSize = config('errorLogTruncateSize');
+                if (truncateSize) {
+                    let fileSize = new FileSize;
+                    let fileSizeInBytes = await fileSize.getFileSizeInBytes(logFile);
+                    // 2 means megabytes - probably implementing some parser for that is a good idea.
+                    if (fileSize.getBytesType(fileSizeInBytes) >= 2 && fileSize.getHumanSize(fileSizeInBytes, fileSize.getBytesType(fileSizeInBytes)) > truncateSize) {
+                        fileSize.truncateFile(logFile);
+                    }
+                }
+
                 if (data.includes('PHP Fatal error')) {
                     this.outputChannel.show();
                     let that = this;
@@ -146,8 +157,13 @@ class ErrorLogViewer {
         return errorFilePathLine;
     }
 
+    async clearErrorChannel() {
+        this.outputChannel.clear();
+    }
+
     destroy() {
         this.outputChannel.dispose();
+        this.clearErrorChannel();
     }
 }
 
