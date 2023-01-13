@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.1.4
+- Removed file which is auto generated
+
+## 2.1.3
+- The reason for this release is because of some problems with Microsoft servers
+
 ## 2.1.2
 - Added option for clearing the error log console
 - Fixed problem with removing the namespace from class when whole classname is needed (in quotes)

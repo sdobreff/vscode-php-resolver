@@ -1,8 +1,8 @@
 # PHP Resolver
-
+<!-- 
 [![Current Version](https://vsmarketplacebadge.apphb.com/version/StoilDobreff.php-resolver.svg)](https://marketplace.visualstudio.com/items?itemName=StoilDobreff.php-resolver.svg)
 [![Install Count](https://vsmarketplacebadge.apphb.com/installs/StoilDobreff.php-resolver.svg)](https://marketplace.visualstudio.com/items?itemName=StoilDobreff.php-resolver.svg)
-[![Open Issues](https://vsmarketplacebadge.apphb.com/rating/StoilDobreff.php-resolver.svg)](https://marketplace.visualstudio.com/items?itemName=StoilDobreff.php-resolver.svg)
+[![Open Issues](https://vsmarketplacebadge.apphb.com/rating/StoilDobreff.php-resolver.svg)](https://marketplace.visualstudio.com/items?itemName=StoilDobreff.php-resolver.svg) -->
 
 **PHP Resolver** is an extension which is using information from different PHP tools and help you resolve most of the **PHP problems**.
 It's purpose is to try to provide all-in-one solution for resolving problems with your **PHP** source files.
