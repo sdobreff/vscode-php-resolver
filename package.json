@@ -2,11 +2,11 @@
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
 	"description": "Resolves most of your PHP problems - imports, expands and collapses php namespaces, monitors your PHP error log, uses PHP beautifier and PHP sniffer",
-	"version": "2.1.4",
+	"version": "2.1.5",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE",
-	"versionChanges": "Fixed bugs with removing namespaces when full classname is needed",
+	"versionChanges": "Improved error messages when commands are not found",
 	"newVersion": "Thank you for installing the PHP Resolver extension. Click OK if you want to check out the repository.",
 	"engines": {
 		"vscode": "^1.68.0"
@@ -435,6 +435,7 @@
 		"url": "https://github.com/sdobreff/vscode-php-resolver/issues"
 	},
 	"dependencies": {
+		"command-exists": "^1.2.9",
 		"cross-spawn": "^7.0.3",
 		"node-natural-sort": "^0.8.6",
 		"node-notifier": "^10.0.0",
@@ -451,8 +452,8 @@
 		"isPreReleaseVersion": false,
 		"targetPlatform": "undefined",
 		"isApplicationScoped": false,
-		"updated": true,
+		"updated": false,
 		"preRelease": false,
-		"installedTimestamp": 1670835370103
+		"installedTimestamp": 1673603322303
 	}
 }

@@ -5,6 +5,7 @@ let { activeEditor, config, showMessage, showErrorMessage } = require('./Helpers
 class PHPBf {
 
     dataReceived = '';
+    libName = 'phpcbf';
 
     setLogger(logger) {
         this.logger = logger;
@@ -16,8 +17,15 @@ class PHPBf {
         let beautyCommand = config('phpBeautifierCommand');
 
         if ('' === beautyCommand) {
-            this.logger.logMessage('phpcbf - No executable is set', 'ERROR');
-            return showErrorMessage(`phpcbf executable is not set.`);
+            this.logger.logMessage(this.libName + ' - No executable is set', 'ERROR');
+            return showErrorMessage(`{this.libName} executable is not set.`);
+        }
+
+        let commandExists = require('command-exists').sync;
+
+        if (!commandExists(beautyCommand)) {
+            this.logger.logMessage(this.libName + ' - Executable is set, but can not be found: "' + beautyCommand + '"', 'ERROR');
+            return showErrorMessage(this.libName + ` executable is not found - ` + beautyCommand);
         }
 
         let standards = config('phpStandards');
@@ -29,7 +37,9 @@ class PHPBf {
 
             args.push(standards);
         }
-        this.logger.logMessage('phpcbf - Arguments set - ' + args.join(' '), 'INFO');
+
+        this.logger.logMessage(this.libName + ' - Command - "' + beautyCommand + '"', 'INFO');
+        this.logger.logMessage(this.libName + ' - Arguments set - ' + args.join(' '), 'INFO');
 
         const child = spawn(beautyCommand, args, { encoding: 'utf8' });
 
@@ -39,31 +49,31 @@ class PHPBf {
         child.on('exit', (exitCode, signalCode) => {
             switch (exitCode) {
                 case null: {
-                    this.logger.logMessage('phpcbf - Nothing is returned from the beautifier', 'INFO');
+                    this.logger.logMessage(this.libName + ' - Nothing is returned from the beautifier', 'INFO');
                     break;
                 }
                 case 0: {
-                    this.logger.logMessage('phpcbf - No fixable errors', 'INFO');
+                    this.logger.logMessage(this.libName + ' - No fixable errors', 'INFO');
                     showMessage('No fixable errors were found');
                     break
                 }
                 case 1: {
-                    this.logger.logMessage('phpcbf - All errors are fixed', 'INFO');
+                    this.logger.logMessage(this.libName + ' - All errors are fixed', 'INFO');
                     showMessage('All fixable errors were resolved');
-                    this.logger.logMessage('phpcbf - Replacing the code', 'INFO');
+                    this.logger.logMessage(this.libName + ' - Replacing the code', 'INFO');
                     this.formatDocument();
                     break
                 }
                 case 2: {
-                    this.logger.logMessage('phpcbf - Failed to fix some of the errors', 'INFO');
+                    this.logger.logMessage(this.libName + ' - Failed to fix some of the errors', 'INFO');
                     showMessage('Failed to fix some of the fixable errors');
-                    this.logger.logMessage('phpcbf - Replacing the code', 'INFO');
+                    this.logger.logMessage(this.libName + ' - Replacing the code', 'INFO');
                     this.formatDocument();
                     break
                 }
                 case 3: {
-                    this.logger.logMessage('phpcbf - Configuration problem - check the arguments and PHP Resolver Output', 'ERROR');
-                    this.logger.logMessage('phpcbf - ' + this.dataReceived, 'ERROR');
+                    this.logger.logMessage(this.libName + ' - Configuration problem - check the arguments and PHP Resolver Output', 'ERROR');
+                    this.logger.logMessage(this.libName + ' - ' + this.dataReceived, 'ERROR');
 
                     showMessage('Mismatched configuration provided');
                     break
@@ -73,7 +83,7 @@ class PHPBf {
             }
         });
 
-        this.logger.logMessage('phpcbf - Writing to the stdin', 'INFO');
+        this.logger.logMessage(this.libName + ' - Writing to the stdin', 'INFO');
 
         await this.format(child);
     }
@@ -83,15 +93,15 @@ class PHPBf {
         return await new Promise((resolve) => {
             child.stdout.on('data', (data) => {
                 if (data) {
-                    this.logger.logMessage('phpcbf - Collecting data ...', 'INFO');
+                    this.logger.logMessage(this.libName + ' - Collecting data ...', 'INFO');
                     this.dataReceived += data.toString();
                 }
             });
             child.stdout.on('end', (data) => {
                 if ('' === this.dataReceived) {
-                    this.logger.logMessage('phpcbf - No data is received - check that the command exists', 'ERROR');
+                    this.logger.logMessage(this.libName + ' - No data is received - check that the command exists', 'ERROR');
                 } else {
-                    this.logger.logMessage('phpcbf - All the output is received - waiting for exit code', 'INFO');
+                    this.logger.logMessage(this.libName + ' - All the output is received - waiting for exit code', 'INFO');
                 }
             });
         });
