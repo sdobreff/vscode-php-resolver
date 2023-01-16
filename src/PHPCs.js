@@ -6,6 +6,7 @@ class PHPCs {
     diagnosticCollection = vscode.languages.createDiagnosticCollection(
         "php"
     );
+    libName = 'phpcs';
 
     setLogger(logger) {
         this.logger = logger;
@@ -19,22 +20,29 @@ class PHPCs {
     }
 
     async fixPHP() {
-        this.logger.logMessage('phpcs - Dispose diagnostic collection', 'INFO');
+        this.logger.logMessage(this.libName + ' - Dispose diagnostic collection', 'INFO');
 
         this.disposeDiagnosticCollection();
 
-        this.logger.logMessage('phpcs - The document URI ' + activeEditor().document.uri, 'INFO');
+        this.logger.logMessage(this.libName + ' - The document URI ' + activeEditor().document.uri, 'INFO');
 
         let text = activeEditor().document.getText();
 
         let snifferCommand = config('phpSnifferCommand');
 
         if ('' === snifferCommand) {
-            this.logger.logMessage('phpcs is command is not provided', 'ERROR');
-            return showErrorMessage(`phpcs executable is not set.`);
+            this.logger.logMessage(this.libName + ' is command is not provided', 'ERROR');
+            return showErrorMessage(this.libName + ` executable is not set.`);
         }
 
-        this.logger.logMessage('phpcs - Extracting standards from the configuration', 'INFO');
+        let commandExists = require('command-exists').sync;
+
+        if (!commandExists(snifferCommand)) {
+            this.logger.logMessage(this.libName + ' - Executable is set, but can not be found: "' + snifferCommand + '"', 'ERROR');
+            return showErrorMessage(this.libName + ` executable is not found - ` + snifferCommand);
+        }
+
+        this.logger.logMessage(this.libName + ' - Extracting standards from the configuration', 'INFO');
         let standards = config('phpStandards');
 
         let args = ["-q", "-", "--report=json"];
@@ -45,10 +53,12 @@ class PHPCs {
             args.push(standards);
         }
 
-        this.logger.logMessage('phpcs - Spawning the command with parameters - ' + args.join(' '), 'INFO');
+        this.logger.logMessage(this.libName + ' - Command - "' + snifferCommand + '"', 'INFO');
+
+        this.logger.logMessage(this.libName + ' - Spawning the command with parameters - ' + args.join(' '), 'INFO');
         const child = spawn(snifferCommand, args, { encoding: 'utf8' });
 
-        this.logger.logMessage('phpcs - Writing the extracted file content to the stdin', 'INFO');
+        this.logger.logMessage(this.libName + ' - Writing the extracted file content to the stdin', 'INFO');
         child.stdin.write(text);
         child.stdin.end();
 
@@ -76,7 +86,7 @@ class PHPCs {
                     break
                 }
                 case 3: {
-                    showMessage('phpcs - Mismatch configuration provided');
+                    showMessage(this.libName + ' - Mismatch configuration provided');
                     break
                 }
                 default:
@@ -122,17 +132,17 @@ class PHPCs {
         return await new Promise((resolve) => {
             child.stdout.on('data', (data) => {
                 if (data) {
-                    this.logger.logMessage('phpcs - Collecting data ...', 'INFO');
+                    this.logger.logMessage(this.libName + ' - Collecting data ...', 'INFO');
                     dataReceived += data.toString();
                 }
             });
 
             child.stdout.on('end', (data) => {
                 if (!dataReceived) {
-                    this.logger.logMessage('phpcs - No data received - exit', 'INFO');
+                    this.logger.logMessage(this.libName + ' - No data received - exit', 'INFO');
                     resolve();
                 }
-                this.logger.logMessage('phpcs - Collecting the output finished starting parsing', 'INFO');
+                this.logger.logMessage(this.libName + ' - Collecting the output finished starting parsing', 'INFO');
                 try {
                     let snifferResponse = JSON.parse(dataReceived);
                     for (const file in snifferResponse['files']) {
@@ -142,7 +152,7 @@ class PHPCs {
                                 const zeroLine = line - 1;
                                 const ZeroColumn = column - 1;
 
-                                this.logger.logMessage('phpcs - Problem found on line ' + line + ' column ' + column, 'INFO');
+                                this.logger.logMessage(this.libName + ' - Problem found on line ' + line + ' column ' + column, 'INFO');
                                 const range = new vscode.Range(
                                     zeroLine,
                                     ZeroColumn,
@@ -155,7 +165,7 @@ class PHPCs {
                                         ? vscode.DiagnosticSeverity.Error
                                         : vscode.DiagnosticSeverity.Warning;
 
-                                this.logger.logMessage('phpcs - Determining the type of severity ' + severity, 'INFO');
+                                this.logger.logMessage(this.libName + ' - Determining the type of severity ' + severity, 'INFO');
 
                                 let output = message + "\nSource: " + source;
 
@@ -166,19 +176,19 @@ class PHPCs {
                                     output,
                                     severity
                                 );
-                                diagnostic.source = "phpcs";
-                                this.logger.logMessage('phpcs - Adding to diagnostic collection', 'INFO');
+                                diagnostic.source = this.libName;
+                                this.logger.logMessage(this.libName + ' - Adding to diagnostic collection', 'INFO');
                                 diagnostics.push(diagnostic);
                             }
                         );
-                        this.logger.logMessage('phpcs - All the diagnostics are collected - adding to the document', 'INFO');
+                        this.logger.logMessage(this.libName + ' - All the diagnostics are collected - adding to the document', 'INFO');
                         this.diagnosticCollection.set(activeEditor().document.uri, diagnostics);
                     }
                     resolve();
                 } catch (e) {
-                    this.logger.logMessage('phpcs - Failed collecting proper output - ' + e.message, 'ERROR');
-                    this.logger.logMessage('phpcs - Received - ' + dataReceived, 'INFO');
-                    resolve(showErrorMessage(`phpcs Fatal error occurred.`));
+                    this.logger.logMessage(this.libName + ' - Failed collecting proper output - ' + e.message, 'ERROR');
+                    this.logger.logMessage(this.libName + ' - Received - ' + dataReceived, 'INFO');
+                    resolve(showErrorMessage(this.libName + ` Fatal error occurred.`));
                 }
             });
         });

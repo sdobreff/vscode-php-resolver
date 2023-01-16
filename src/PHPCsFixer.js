@@ -6,6 +6,7 @@ let { activeEditor, config, showMessage, showErrorMessage, USER_CONFIG_FIXER_FIL
 class PHPCsFixer {
     userConfigFileUri = path.join(__dirname, '../' + USER_CONFIG_FIXER_FILE_NAME);
     dataReceived = '';
+    libName = 'phpcsfixer';
 
     setLogger(logger) {
         this.logger = logger;
@@ -20,8 +21,15 @@ class PHPCsFixer {
         }
 
         if ('' === beautyCommand) {
-            this.logger.logMessage('phpcsfixer - No executable is set', 'ERROR');
-            return showErrorMessage(`phpcsfixer executable is not set.`);
+            this.logger.logMessage(this.libName + ' - No executable is set', 'ERROR');
+            return showErrorMessage(this.libName + ` executable is not set.`);
+        }
+
+        let commandExists = require('command-exists').sync;
+
+        if (!commandExists(beautyCommand)) {
+            this.logger.logMessage(this.libName + ' - Executable is set, but can not be found: "' + beautyCommand + '"', 'ERROR');
+            return showErrorMessage(this.libName + ` executable is not found.`);
         }
 
         let standards = config('phpFixerRules');
@@ -40,7 +48,8 @@ class PHPCsFixer {
             args.push(config);
         }
 
-        this.logger.logMessage('phpcsfixer - Arguments set - ' + args.join(' '), 'INFO');
+        this.logger.logMessage(this.libName + ' - Command - "' + beautyCommand + '"', 'INFO');
+        this.logger.logMessage(this.libName + ' - Arguments set - ' + args.join(' '), 'INFO');
 
         const child = spawn(beautyCommand, args, { encoding: 'utf8' });
 
@@ -49,30 +58,30 @@ class PHPCsFixer {
         child.on('exit', (exitCode, signalCode) => {
             switch (exitCode) {
                 case null: {
-                    this.logger.logMessage('phpcsfixer - Nothing is returned from the fixer', 'INFO');
+                    this.logger.logMessage(this.libName + ' - Nothing is returned from the fixer', 'INFO');
                     break;
                 }
                 case 0: {
-                    this.logger.logMessage('phpcsfixer - Everything is fixed', 'INFO');
+                    this.logger.logMessage(this.libName + ' - Everything is fixed', 'INFO');
                     showMessage('Everything is fixed');
                     break
                 }
                 case 1: {
                     showMessage('General error (or PHP minimal requirement not matched).');
-                    this.logger.logMessage('phpcsfixer - ' + this.dataReceived, 'ERROR');
+                    this.logger.logMessage(this.libName + ' - ' + this.dataReceived, 'ERROR');
                     break
                 }
                 case 2: {
-                    this.logger.logMessage('phpcsfixer - Failed to fix some of the errors', 'INFO');
+                    this.logger.logMessage(this.libName + ' - Failed to fix some of the errors', 'INFO');
                     showMessage('Failed to fix some of the fixable errors');
-                    this.logger.logMessage('phpcsfixer - Replacing the code', 'INFO');
+                    this.logger.logMessage(this.libName + ' - Replacing the code', 'INFO');
                     break
                 }
                 case 16: {
-                    this.logger.logMessage('phpcsfixer - Configuration problem - check the arguments and PHP Resolver Output', 'ERROR');
-                    this.logger.logMessage('phpcsfixer - ' + this.dataReceived, 'ERROR');
+                    this.logger.logMessage(this.libName + ' - Configuration problem - check the arguments and PHP Resolver Output', 'ERROR');
+                    this.logger.logMessage(this.libName + ' - ' + this.dataReceived, 'ERROR');
 
-                    showMessage('phpcsfixer - Mismatched configuration provided');
+                    showMessage(this.libName + ' - Mismatched configuration provided');
                     break
                 }
                 default:
@@ -80,7 +89,7 @@ class PHPCsFixer {
             }
         });
 
-        this.logger.logMessage('phpcsfixer - Writing to the stdin', 'INFO');
+        this.logger.logMessage(this.libName + ' - Writing to the stdin', 'INFO');
 
         await this.format(child);
     }
@@ -90,15 +99,15 @@ class PHPCsFixer {
         return await new Promise((resolve) => {
             child.stdout.on('data', (data) => {
                 if (data) {
-                    this.logger.logMessage('phpcsfixer - Collecting data ...', 'INFO');
+                    this.logger.logMessage(this.libName + ' - Collecting data ...', 'INFO');
                     this.dataReceived += data.toString();
                 }
             });
             child.stdout.on('end', (data) => {
                 if ('' === this.dataReceived) {
-                    this.logger.logMessage('phpcsfixer - No data is received - check that the command exists', 'ERROR');
+                    this.logger.logMessage(this.libName + ' - No data is received - check that the command exists', 'ERROR');
                 } else {
-                    this.logger.logMessage('phpcsfixer - All the output is received - waiting for exit code', 'INFO');
+                    this.logger.logMessage(this.libName + ' - All the output is received - waiting for exit code', 'INFO');
                 }
             });
         });

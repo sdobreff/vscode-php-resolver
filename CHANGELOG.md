@@ -1,5 +1,8 @@
 # Change Log
 
+## 2.1.5
+- Improved error messages when commands are not found
+
 ## 2.1.4
 - Removed file which is auto generated
 
