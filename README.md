@@ -86,6 +86,9 @@ If your project is using custom standards as it is described here: [PHP_CodeSnif
 }
 ```
 
+As of verion 2.2, you can use `phpResolver.phpCustomStandardsFile` setting to override the standards provided in `phpResolver.phpStandards`. There you can set the default file name used for custom XML standards used in your project. The extension will automatically try to search your project directory structure for that specific file, and apply it to the commands (if found). The default file name is `phpcs.xml`, but you can override it using that setting.
+That means that you can have different standards in different directories of your project, but the name of the file should remain the same.
+
 ### PHP cs fixer
 
 The extension supports `php-cs-fixer` which could format, check for common errors, resolve PHP problems in the PHP source files. For that to work properly, you have to have installed `php-cs-fixer` command, and that must be visible for the extension.
@@ -408,6 +411,7 @@ You can override these default settings according to your needs.
     "phpResolver.phpBeautifierCommand": "",        // Full path to the PHP beautifier command
     "phpResolver.phpSnifferCommand": "",           // Full path to the PHP sniffer command
     "phpResolver.phpStandards": "",                // PHP standards (comma separated) which PHP Sniffer and Beautifier commands should use
+    "phpResolver.phpCustomStandardsFile": "phpcs.xml", // The custom standards file to be used with the beautifier / sniffer.
     "phpResolver.phpLogFile": "",                  // Full path to the PHP error log file - you can set any PHP error log file to be monitored by the extension
     "phpResolver.phpLogFilePathRemote": "",        // If you are developing using remote environment (vagrant, docker, etc) put the path generated in the error log file on the remote, which has to be mapped to the local path in the error log monitor output (so the vscode could recognize the links, and resolves them to your local environment)
     "phpResolver.phpLogFilePathLocal": "",         // Local path which has to be used to replace the remote file path in the error log

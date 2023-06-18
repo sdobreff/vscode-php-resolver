@@ -1,5 +1,8 @@
 # Change Log
 
+## 2.2
+- Added custom standards file support - phpcs.xml - or custom named file - you can set that from settings
+
 ## 2.1.5
 - Improved error messages when commands are not found
 

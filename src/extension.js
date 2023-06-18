@@ -135,9 +135,9 @@ function updateConfig(context) {
         context.subscriptions.push(onSaveSniff);
     } else {
         logger.logMessage('Sniffer path is not set - sniffer can not check PHP files', 'INFO');
-        if (null !== phpcs) {
-            phpcs.disposeDiagnosticCollection();
-        }
+        // if (null !== phpcs) {
+        //     phpcs.disposeDiagnosticCollection();
+        // }
         if (null !== onChangeSniff) {
             onChangeSniff.dispose();
             onChangeSniff = null;

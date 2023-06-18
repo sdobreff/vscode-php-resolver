@@ -2,11 +2,11 @@
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
 	"description": "Resolves most of your PHP problems - imports, expands and collapses php namespaces, monitors your PHP error log, uses PHP beautifier and PHP sniffer",
-	"version": "2.1.5",
+	"version": "2.2",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE",
-	"versionChanges": "Improved error messages when commands are not found",
+	"versionChanges": "Custom code standards file support added",
 	"newVersion": "Thank you for installing the PHP Resolver extension. Click OK if you want to check out the repository.",
 	"engines": {
 		"vscode": "^1.68.0"
@@ -174,6 +174,11 @@
 					"type": "string",
 					"default": "",
 					"description": "The standards to be used with the beautifier / sniffer. Comma separated."
+				},
+				"phpResolver.phpCustomStandardsFile": {
+					"type": "string",
+					"default": "phpcs.xml",
+					"description": "The custom standards file to be used with the beautifier / sniffer."
 				},
 				"phpResolver.fixerConfigString": {
 					"type": "string",
@@ -452,8 +457,8 @@
 		"isPreReleaseVersion": false,
 		"targetPlatform": "undefined",
 		"isApplicationScoped": false,
-		"updated": false,
+		"updated": true,
 		"preRelease": false,
-		"installedTimestamp": 1673603322303
+		"installedTimestamp": 1673893098177
 	}
 }
