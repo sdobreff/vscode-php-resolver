@@ -2,7 +2,7 @@
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
 	"description": "Resolves most of your PHP problems - imports, expands and collapses php namespaces, monitors your PHP error log, uses PHP beautifier and PHP sniffer",
-	"version": "2.2",
+	"version": "2.2.0",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE",
