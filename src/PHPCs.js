@@ -22,6 +22,12 @@ class PHPCs {
     }
 
     async fixPHP() {
+
+        if (3000 < activeEditor().document.lineCount) {
+            this.logger.logMessage(this.libName + ' - Files longer than 3K lines are not fixed for resource purposes', 'INFO');
+
+            return;
+        }
         this.logger.logMessage(this.libName + ' - Dispose diagnostic collection', 'INFO');
 
         // this.disposeDiagnosticCollection();

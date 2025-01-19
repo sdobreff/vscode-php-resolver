@@ -6,8 +6,9 @@ let PHPCs = require('./PHPCs');
 let Logger = require('./Logger');
 let VersionNotifier = require('./VersionNotifier');
 let ErrorLogViewer = require('./ErrorLogViewer');
-let FileSize = require('./FileSize');
+// let FileSize = require('./FileSize');
 let { activeEditor, config } = require('./Helpers');
+let createDecoratorClass = require('./ExplorerDecorator');
 
 let errorLogger = null;
 
@@ -155,9 +156,9 @@ function updateConfig(context) {
     return configuration;
 }
 
-function activate(context) {
+async function activate(context) {
     let resolver = new Resolver;
-    let fileSize = new FileSize;
+    //let fileSize = new FileSize;
 
     if ('' !== config('phpLogFile')) {
         errorLogger = new ErrorLogViewer;
@@ -204,7 +205,7 @@ function activate(context) {
     );
 
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((event) => {
-        fileSize.loadFileSize();
+        //fileSize.loadFileSize();
     }));
 
     if ('' !== config('phpSnifferCommand')) {
@@ -346,7 +347,7 @@ function activate(context) {
     // context.subscriptions.push(logger);
 
     logger.logMessage('Starting file size', 'INFO');
-    fileSize.loadFileSize();
+    //fileSize.loadFileSize();
 
     // var onOpen = vscode.workspace.onDidOpenTextDocument((document) => {
     //     if (document.languageId === 'php') {
@@ -357,7 +358,7 @@ function activate(context) {
 
     onSaveSniff = vscode.workspace.onDidSaveTextDocument((document) => {
         logger.logMessage('Document is saved - loading file size', 'INFO');
-        fileSize.loadFileSize();
+        //fileSize.loadFileSize();
         // if (document.languageId === 'php') {
         //     logger.logMessage('Document is saved - starting code sniffer', 'INFO');
         //     phpcs.fixPHP();
@@ -371,6 +372,23 @@ function activate(context) {
     // context.subscriptions.push(onOpen);
     context.subscriptions.push(onSave);
     context.subscriptions.push(onChangeConfig);
+
+    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
+        if (
+            event &&
+            event.document.languageId === 'php'
+        ) {
+            logger.logMessage('Document is changed - starting diagnostic', 'INFO');
+            phpcs.fixPHP();
+        }
+    }));
+
+    if (config('fileSizeOnHover')) { 
+        let decorator = await createDecoratorClass();
+
+        const watcher = vscode.workspace.createFileSystemWatcher('**/*');
+        watcher.onDidChange(uri => decorator.onFileChanged(uri));
+    }
 }
 
 exports.activate = activate;

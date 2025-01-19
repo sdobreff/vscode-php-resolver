@@ -329,6 +329,11 @@
 					"type": "integer",
 					"default": "1",
 					"description": "Automatically truncate error log file when it reaches the size (in megabytes). 0 means no truncation."
+				},
+				"phpResolver.fileSizeOnHover": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show file size in Explorer window on hover"
 				}
 			}
 		},

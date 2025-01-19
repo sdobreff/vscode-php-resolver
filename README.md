@@ -349,6 +349,10 @@ In order for that to work properly, you have to manually provide the correct set
   - In that case, extension needs to map your error log paths to the local environment.
   - Use `phpResolver.phpLogFilePathRemote` to point to the root of your remote project directory. *Example:* **"/var/www/html/"**
   - Use `phpResolver.phpLogFilePathLocal`, to point to the root of your local project directory. *Example:* **"/Users/your-user/MyProjects/project/"**
+  
+## File size on hover in Explorer view
+
+Extension supports filesize info, which is shown in the standard Explorer view on hover. Currently only supports files (not directories) - file of any type can be checked by just holding the mouse over the file and the size will be added in the hint in human readable format.
 
 ## Commands
 
@@ -420,6 +424,7 @@ You can override these default settings according to your needs.
     "phpResolver.fixerConfigString": "..."         // The PHP object class which extends the php-cs-fixer. Check above - "default class source code".
     "phpResolver.phpFixerRules": object,           // JSON formatted fixer rules. Check above - PHP cs fixer.
     "phpResolver.errorLogTruncateSize": 1,         // Integer value (in megabytes), if error log file get over that size, it will be automatically truncated (to 0 bytes).
+    "phpResolver.fileSizeOnHover": 1,         // Boolean value, set to true if you want extension to show the file size of every hovered file in the Explorer view. Default is true.
 }
 ```
 
