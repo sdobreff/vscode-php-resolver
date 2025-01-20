@@ -233,7 +233,7 @@ class PHPCs {
                     for (const file in snifferResponse['files']) {
                         const diagnostics = [];
                         snifferResponse['files'][file].messages.forEach(
-                            ({ message, line, column, type, source }) => {
+                            ({ message, line, column, type, source, severity,fixable }) => {
                                 const zeroLine = line - 1;
                                 const ZeroColumn = column - 1;
 
@@ -245,23 +245,24 @@ class PHPCs {
                                     ZeroColumn
                                 );
 
-                                const severity =
+                                const severityDiagnostic =
                                     type === PHPCSMessageType.ERROR
                                         ? vscode.DiagnosticSeverity.Error
                                         : vscode.DiagnosticSeverity.Warning;
 
-                                this.logger.logMessage(this.libName + ' - Determining the type of severity ' + severity, 'INFO');
+                                this.logger.logMessage(this.libName + ' - Determining the type of severity ' + severityDiagnostic, 'INFO');
 
-                                let output = message + "\nSource: " + source;
+                                let output = message + "\nSource: KUUUR" + source;
 
                                 output += `\nPHP Resolver`;
 
                                 const diagnostic = new vscode.Diagnostic(
                                     range,
                                     output,
-                                    severity
+                                    severityDiagnostic
                                 );
                                 diagnostic.source = this.libName;
+                                diagnostic.information = {'provider': 'php-resolver', 'source': source, 'severity': severity, 'message': message, 'type': type, 'fixable': fixable, 'line': line};
                                 this.logger.logMessage(this.libName + ' - Adding to diagnostic collection', 'INFO');
                                 diagnostics.push(diagnostic);
                             }

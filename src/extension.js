@@ -9,6 +9,7 @@ let ErrorLogViewer = require('./ErrorLogViewer');
 // let FileSize = require('./FileSize');
 let { activeEditor, config } = require('./Helpers');
 let createDecoratorClass = require('./ExplorerDecorator');
+let codeActions = require("./CodeActions");
 
 let errorLogger = null;
 
@@ -389,6 +390,23 @@ async function activate(context) {
         const watcher = vscode.workspace.createFileSystemWatcher('**/*');
         watcher.onDidChange(uri => decorator.onFileChanged(uri));
     }
+
+    let provider = {
+            provideCodeActions: function (document, range, context, token) {
+                let diagnostics = context.diagnostics;
+                let actions = [];
+                for (let diagnostic of diagnostics) {
+                    const action = (0, codeActions.createQuickFix)(diagnostic, document, range);
+                    if (action !== undefined) {
+                        actions.push(action);
+                    }
+                }
+                return actions;
+            }
+        };
+        context.subscriptions.push(vscode.languages.registerCodeActionsProvider({ scheme: 'file', language: 'php' }, provider, {
+            providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
+        }));
 }
 
 exports.activate = activate;
