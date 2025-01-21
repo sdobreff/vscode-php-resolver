@@ -1,7 +1,7 @@
 # Change Log
 
-## 2.3
-- Dropped support for the file size of the currently opened file in the status, added support for file size in the default Explorer view on hover.
+## 2.2.1
+- Dropped support for the file size of the currently opened file in the status, added support for file size in the default Explorer view on hover. Added resolver (CodeActions), which adds phpcs inline comment to escape current phpcs error quickly.
 
 ## 2.2
 - Added custom standards file support - phpcs.xml - or custom named file - you can set that from settings
