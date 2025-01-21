@@ -30,6 +30,7 @@ class PHPBf {
 
                     if ('' === beautyCommand) {
                         this.logger.logMessage(this.libName + ' - No executable is set', 'ERROR');
+                        resolve(null);
                         return showErrorMessage(`{this.libName} executable is not set.`);
                     }
 
@@ -37,6 +38,7 @@ class PHPBf {
 
                     if (!commandExists(beautyCommand)) {
                         this.logger.logMessage(this.libName + ' - Executable is set, but can not be found: "' + beautyCommand + '"', 'ERROR');
+                        resolve(null);
                         return showErrorMessage(this.libName + ` executable is not found - ` + beautyCommand);
                     }
 
