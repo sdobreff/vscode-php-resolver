@@ -347,7 +347,7 @@ async function activate(context) {
     // context.subscriptions.push(phpcs);
     // context.subscriptions.push(logger);
 
-    logger.logMessage('Starting file size', 'INFO');
+    // logger.logMessage('Starting file size', 'INFO');
     //fileSize.loadFileSize();
 
     // var onOpen = vscode.workspace.onDidOpenTextDocument((document) => {
@@ -358,7 +358,7 @@ async function activate(context) {
     // });
 
     onSaveSniff = vscode.workspace.onDidSaveTextDocument((document) => {
-        logger.logMessage('Document is saved - loading file size', 'INFO');
+        // logger.logMessage('Document is saved - loading file size', 'INFO');
         //fileSize.loadFileSize();
         // if (document.languageId === 'php') {
         //     logger.logMessage('Document is saved - starting code sniffer', 'INFO');

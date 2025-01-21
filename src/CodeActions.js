@@ -29,6 +29,16 @@ function createQuickFix(diagnostic, document, range) {
 exports.createQuickFix = createQuickFix;
 
 function diagnosticCreateQuickFix(text, diagnostic) {
+    let extraText = '';
+
+    if (text.includes('?>')) {
+        const typeRegexPHPTag = /(.+)\?\>(.*)/;
+        const matchPHPTag = text.match(typeRegexPHPTag);
+
+        text = matchPHPTag[1];
+        extraText = '?>'+matchPHPTag[2];
+    }
+
     const typeRegex = /(.+)(([\/]{2,})\s?(phpcs\:ignore)?([\w\,\.\s]{0,}))/;
     const match = text.match(typeRegex);
     if (match) {
@@ -45,7 +55,7 @@ function diagnosticCreateQuickFix(text, diagnostic) {
         text += ' // phpcs:ignore ' + diagnostic.information.source
     }
 
-    return text;
+    return text+extraText;
 }
 
 function isNullableError(diagnostic) {

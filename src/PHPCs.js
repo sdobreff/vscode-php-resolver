@@ -30,7 +30,7 @@ class PHPCs {
         }
         this.logger.logMessage(this.libName + ' - Dispose diagnostic collection', 'INFO');
 
-        // this.disposeDiagnosticCollection();
+        this.disposeDiagnosticCollection();
 
         this.logger.logMessage(this.libName + ' - The document URI ' + activeEditor().document.uri, 'INFO');
 
@@ -252,7 +252,7 @@ class PHPCs {
 
                                 this.logger.logMessage(this.libName + ' - Determining the type of severity ' + severityDiagnostic, 'INFO');
 
-                                let output = message + "\nSource: KUUUR" + source;
+                                let output = message + "\nSource: " + source;
 
                                 output += `\nPHP Resolver`;
 
