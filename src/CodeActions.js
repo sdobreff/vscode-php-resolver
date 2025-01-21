@@ -36,7 +36,7 @@ function diagnosticCreateQuickFix(text, diagnostic) {
         const matchPHPTag = text.match(typeRegexPHPTag);
 
         text = matchPHPTag[1];
-        extraText = '?>'+matchPHPTag[2];
+        extraText = ' ?>' + matchPHPTag[2];
     }
 
     const typeRegex = /(.+)(([\/]{2,})\s?(phpcs\:ignore)?([\w\,\.\s]{0,}))/;

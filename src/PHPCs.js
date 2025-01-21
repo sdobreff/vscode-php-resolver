@@ -23,7 +23,7 @@ class PHPCs {
 
     async fixPHP() {
 
-        if (3000 < activeEditor().document.lineCount) {
+        if (config('limitCodeLines') < activeEditor().document.lineCount) {
             this.logger.logMessage(this.libName + ' - Files longer than 3K lines are not fixed for resource purposes', 'INFO');
 
             return;

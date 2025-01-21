@@ -335,6 +335,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Show file size in Explorer window on hover"
+				},
+				"phpResolver.limitCodeLines": {
+					"type": "integer",
+					"default": 3000,
+					"description": "Set the file lines limit above which the PHP CS should not run checks"
 				}
 			}
 		},
