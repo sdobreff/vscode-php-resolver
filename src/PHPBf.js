@@ -2,7 +2,7 @@ let vscode = require('vscode');
 let spawn = require('cross-spawn');
 const path = require('path');
 let fs = require('fs');
-let { activeEditor, config, showMessage, showErrorMessage } = require('./Helpers');
+let { activeEditor, config, showMessage, showErrorMessage, EXTENSION_NAME } = require('./Helpers');
 
 class PHPBf {
 
@@ -14,99 +14,122 @@ class PHPBf {
     }
 
     async fixPHP() {
-        let text = activeEditor().document.getText();
 
-        let beautyCommand = config('phpBeautifierCommand');
+        vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            cancellable: false
+        },
+            async (progress, token) => {
+                return new Promise((async (resolve) => {
 
-        if ('' === beautyCommand) {
-            this.logger.logMessage(this.libName + ' - No executable is set', 'ERROR');
-            return showErrorMessage(`{this.libName} executable is not set.`);
-        }
+                    progress.report({ message: EXTENSION_NAME + `: Started Beautifier command` });
 
-        let commandExists = require('command-exists').sync;
+                    let text = activeEditor().document.getText();
 
-        if (!commandExists(beautyCommand)) {
-            this.logger.logMessage(this.libName + ' - Executable is set, but can not be found: "' + beautyCommand + '"', 'ERROR');
-            return showErrorMessage(this.libName + ` executable is not found - ` + beautyCommand);
-        }
+                    let beautyCommand = config('phpBeautifierCommand');
 
-        this.logger.logMessage(this.libName + ' - Extracting standards from directory structure', 'INFO');
+                    if ('' === beautyCommand) {
+                        this.logger.logMessage(this.libName + ' - No executable is set', 'ERROR');
+                        resolve(null);
+                        return showErrorMessage(`{this.libName} executable is not set.`);
+                    }
 
-        const filename = activeEditor().document.fileName;
-        const opts = { cwd: path.dirname(filename) };
-        let standardsFileName = config('phpCustomStandardsFile');
-        let standardsFile = undefined;
-        if ('' !== standardsFileName) {
-            standardsFile = this.getFilePath([standardsFileName], opts.cwd);
-        }
+                    let commandExists = require('command-exists').sync;
 
-        let standards = '';
+                    if (!commandExists(beautyCommand)) {
+                        this.logger.logMessage(this.libName + ' - Executable is set, but can not be found: "' + beautyCommand + '"', 'ERROR');
+                        resolve(null);
+                        return showErrorMessage(this.libName + ` executable is not found - ` + beautyCommand);
+                    }
 
-        if (undefined === standardsFile) {
-            this.logger.logMessage(this.libName + ' - No standards in dir structure - fall back to the configuration', 'INFO');
-            this.logger.logMessage(this.libName + ' - Extracting standards from the configuration', 'INFO');
-            standards = config('phpStandards');
-        } else {
-            this.logger.logMessage(this.libName + ' - Standards config file found!', 'INFO');
-            standards = standardsFile;
-        }
+                    this.logger.logMessage(this.libName + ' - Extracting standards from directory structure', 'INFO');
 
-        let args = ["-q", "-"];
+                    const filename = activeEditor().document.fileName;
+                    const opts = { cwd: path.dirname(filename) };
+                    let standardsFileName = config('phpCustomStandardsFile');
+                    let standardsFile = undefined;
+                    if ('' !== standardsFileName) {
+                        standardsFile = this.getFilePath([standardsFileName], opts.cwd);
+                    }
 
-        if ('' !== standards) {
-            standards = "--standard=" + standards;
+                    let standards = '';
 
-            args.push(standards);
-        }
+                    if (undefined === standardsFile) {
+                        this.logger.logMessage(this.libName + ' - No standards in dir structure - fall back to the configuration', 'INFO');
+                        this.logger.logMessage(this.libName + ' - Extracting standards from the configuration', 'INFO');
+                        standards = config('phpStandards');
+                    } else {
+                        this.logger.logMessage(this.libName + ' - Standards config file found!', 'INFO');
+                        standards = standardsFile;
+                    }
 
-        this.logger.logMessage(this.libName + ' - Command - "' + beautyCommand + '"', 'INFO');
-        this.logger.logMessage(this.libName + ' - Arguments set - ' + args.join(' '), 'INFO');
+                    progress.report({ message: EXTENSION_NAME + `: Standards are set spawning command` });
 
-        const child = spawn(beautyCommand, args, { encoding: 'utf8' });
+                    let args = ["-q", "-"];
 
-        child.stdin.write(text);
-        child.stdin.end();
+                    if ('' !== standards) {
+                        standards = "--standard=" + standards;
 
-        child.on('exit', (exitCode, signalCode) => {
-            switch (exitCode) {
-                case null: {
-                    this.logger.logMessage(this.libName + ' - Nothing is returned from the beautifier', 'INFO');
-                    break;
-                }
-                case 0: {
-                    this.logger.logMessage(this.libName + ' - No fixable errors', 'INFO');
-                    showMessage('No fixable errors were found');
-                    break
-                }
-                case 1: {
-                    this.logger.logMessage(this.libName + ' - All errors are fixed', 'INFO');
-                    showMessage('All fixable errors were resolved');
-                    this.logger.logMessage(this.libName + ' - Replacing the code', 'INFO');
-                    this.formatDocument();
-                    break
-                }
-                case 2: {
-                    this.logger.logMessage(this.libName + ' - Failed to fix some of the errors', 'INFO');
-                    showMessage('Failed to fix some of the fixable errors');
-                    this.logger.logMessage(this.libName + ' - Replacing the code', 'INFO');
-                    this.formatDocument();
-                    break
-                }
-                case 3: {
-                    this.logger.logMessage(this.libName + ' - Configuration problem - check the arguments and PHP Resolver Output', 'ERROR');
-                    this.logger.logMessage(this.libName + ' - ' + this.dataReceived, 'ERROR');
+                        args.push(standards);
+                    }
 
-                    showMessage('Mismatched configuration provided');
-                    break
-                }
-                default:
-                    break;
+                    this.logger.logMessage(this.libName + ' - Command - "' + beautyCommand + '"', 'INFO');
+                    this.logger.logMessage(this.libName + ' - Arguments set - ' + args.join(' '), 'INFO');
+
+                    const child = spawn(beautyCommand, args, { encoding: 'utf8' });
+
+                    child.stdin.write(text);
+                    child.stdin.end();
+
+                    child.on('exit', (exitCode, signalCode) => {
+                        switch (exitCode) {
+                            case null: {
+                                this.logger.logMessage(this.libName + ' - Nothing is returned from the beautifier', 'INFO');
+                                break;
+                            }
+                            case 0: {
+                                this.logger.logMessage(this.libName + ' - No fixable errors', 'INFO');
+                                showMessage('No fixable errors were found');
+                                break
+                            }
+                            case 1: {
+                                this.logger.logMessage(this.libName + ' - All errors are fixed', 'INFO');
+                                showMessage('All fixable errors were resolved');
+                                this.logger.logMessage(this.libName + ' - Replacing the code', 'INFO');
+                                this.formatDocument();
+                                break
+                            }
+                            case 2: {
+                                this.logger.logMessage(this.libName + ' - Failed to fix some of the errors', 'INFO');
+                                showMessage('Failed to fix some of the fixable errors');
+                                this.logger.logMessage(this.libName + ' - Replacing the code', 'INFO');
+                                this.formatDocument();
+                                break
+                            }
+                            case 3: {
+                                this.logger.logMessage(this.libName + ' - Configuration problem - check the arguments and PHP Resolver Output', 'ERROR');
+                                this.logger.logMessage(this.libName + ' - ' + this.dataReceived, 'ERROR');
+
+                                showMessage('Mismatched configuration provided');
+                                break
+                            }
+                            default:
+                                break;
+                        }
+                        progress.report({ increment: 100, message: EXTENSION_NAME + `: Finished` });
+                        resolve(null);
+                    });
+
+                    this.logger.logMessage(this.libName + ' - Writing to the stdin', 'INFO');
+
+                    progress.report({ message: EXTENSION_NAME + `: Waiting for the response` });
+
+                    await this.format(child);
+
+                }));
+
             }
-        });
-
-        this.logger.logMessage(this.libName + ' - Writing to the stdin', 'INFO');
-
-        await this.format(child);
+        );
     }
 
     async format(child) {

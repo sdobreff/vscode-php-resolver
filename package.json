@@ -2,11 +2,11 @@
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
 	"description": "Resolves most of your PHP problems - imports, expands and collapses php namespaces, monitors your PHP error log, uses PHP beautifier and PHP sniffer",
-	"version": "2.2.0",
+	"version": "2.3.0",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE",
-	"versionChanges": "Custom code standards file support added",
+	"versionChanges": "Added resolver (CodeActions), which adds phpcs inline comment to escape current phpcs errors quickly. Code improvements.",
 	"newVersion": "Thank you for installing the PHP Resolver extension. Click OK if you want to check out the repository.",
 	"engines": {
 		"vscode": "^1.68.0"
@@ -27,6 +27,7 @@
 		"WordPress",
 		"sniffer",
 		"beautifier",
+		"resolver",
 		"PHP error log",
 		"phpcs",
 		"phpcbf",
@@ -329,6 +330,16 @@
 					"type": "integer",
 					"default": "1",
 					"description": "Automatically truncate error log file when it reaches the size (in megabytes). 0 means no truncation."
+				},
+				"phpResolver.fileSizeOnHover": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show file size in Explorer window on hover"
+				},
+				"phpResolver.limitCodeLines": {
+					"type": "integer",
+					"default": 3000,
+					"description": "Set the file lines limit above which the PHP CS should not run checks"
 				}
 			}
 		},

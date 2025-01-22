@@ -4,6 +4,8 @@ const USER_CONFIG_FILE_NAME = 'user.resolver.config.json';
 
 const USER_CONFIG_FIXER_FILE_NAME = 'user.resolver.fixer.config.php';
 
+const EXTENSION_NAME = 'PHP Resolver';
+
 const activeEditor = () => {
     return vscode.window.activeTextEditor;
 }
@@ -53,4 +55,4 @@ const isNewerVersion = (oldVer, newVer) => {
     return false
 }
 
-module.exports = { activeEditor, config, showMessage, showErrorMessage, USER_CONFIG_FILE_NAME, USER_CONFIG_FIXER_FILE_NAME, isNewerVersion, showExtensionMessage };
+module.exports = { activeEditor, config, showMessage, showErrorMessage, USER_CONFIG_FILE_NAME, USER_CONFIG_FIXER_FILE_NAME, isNewerVersion, showExtensionMessage, EXTENSION_NAME };

@@ -7,6 +7,8 @@
 **PHP Resolver** is an extension which is using information from different PHP tools and help you resolve most of the **PHP problems**.
 It's purpose is to try to provide all-in-one solution for resolving problems with your **PHP** source files.
 
+![PHP Resolver](./images/extension-preview.gif)
+
 - Automatically generates **PHP namespaces** for the given class based on the `composer.json`. Both **psr-4** and **psr-0** are supported.
 - After namespaces importing, the classes are automatically collapsed.
 - Extension supports **importing classes** not only from PSR4 and PSR0 but also **WordPress** format - `class-<name of the class>`. It automatically **checks for namespace declarations** in the files and extracts data from there.
@@ -349,6 +351,18 @@ In order for that to work properly, you have to manually provide the correct set
   - In that case, extension needs to map your error log paths to the local environment.
   - Use `phpResolver.phpLogFilePathRemote` to point to the root of your remote project directory. *Example:* **"/var/www/html/"**
   - Use `phpResolver.phpLogFilePathLocal`, to point to the root of your local project directory. *Example:* **"/Users/your-user/MyProjects/project/"**
+  
+## File size on hover in Explorer view
+
+Extension supports filesize info, which is shown in the standard Explorer view on hover. Currently only supports files (not directories) - file of any type can be checked by just holding the mouse over the file and the size will be added in the hint in human readable format.
+
+![PHP Resolver](./images/file-size-on-hover.gif)
+
+## PHPCS rules ignore
+
+Extension supports inline rules ignore (using inline phpcs:ignore syntax) for the errors / problems collected from the phpcs. Multiple rules syntax is also supported and in use - just use Quick Fix menu, or go to problems tab.
+
+![PHP Resolver](./images/inline-phpcs-ignore.gif)
 
 ## Commands
 
@@ -420,6 +434,8 @@ You can override these default settings according to your needs.
     "phpResolver.fixerConfigString": "..."         // The PHP object class which extends the php-cs-fixer. Check above - "default class source code".
     "phpResolver.phpFixerRules": object,           // JSON formatted fixer rules. Check above - PHP cs fixer.
     "phpResolver.errorLogTruncateSize": 1,         // Integer value (in megabytes), if error log file get over that size, it will be automatically truncated (to 0 bytes).
+    "phpResolver.fileSizeOnHover": 1,              // Boolean value, set to true if you want extension to show the file size of every hovered file in the Explorer view. Default is true.
+    "phpResolver.limitCodeLines": 3000,            // Integer value, extension now checks for the lines count of the current file and if it exceed that value, it wont run any checks on it (performance issues).
 }
 ```
 

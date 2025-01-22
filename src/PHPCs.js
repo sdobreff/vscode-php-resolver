@@ -2,7 +2,7 @@ let vscode = require('vscode');
 let spawn = require('cross-spawn');
 const path = require('path');
 let fs = require('fs');
-let { activeEditor, config, showMessage, showErrorMessage } = require('./Helpers');
+let { activeEditor, config, showMessage, showErrorMessage, EXTENSION_NAME } = require('./Helpers');
 
 class PHPCs {
     diagnosticCollection = vscode.languages.createDiagnosticCollection(
@@ -22,123 +22,150 @@ class PHPCs {
     }
 
     async fixPHP() {
-        this.logger.logMessage(this.libName + ' - Dispose diagnostic collection', 'INFO');
 
-        // this.disposeDiagnosticCollection();
+        if (config('limitCodeLines') < activeEditor().document.lineCount) {
+            this.logger.logMessage(this.libName + ' - Files longer than ' + config('limitCodeLines') + ' lines are not fixed - saving resources', 'INFO');
 
-        this.logger.logMessage(this.libName + ' - The document URI ' + activeEditor().document.uri, 'INFO');
-
-        let text = activeEditor().document.getText();
-
-        let snifferCommand = config('phpSnifferCommand');
-
-        if ('' === snifferCommand) {
-            this.logger.logMessage(this.libName + ' is command is not provided', 'ERROR');
-            return showErrorMessage(this.libName + ` executable is not set.`);
+            return;
         }
 
-        let commandExists = require('command-exists').sync;
 
-        if (!commandExists(snifferCommand)) {
-            this.logger.logMessage(this.libName + ' - Executable is set, but can not be found: "' + snifferCommand + '"', 'ERROR');
-            return showErrorMessage(this.libName + ` executable is not found - ` + snifferCommand);
-        }
+        vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            cancellable: false
+        },
+            async (progress, token) => {
+                return new Promise((async (resolve) => {
+                    this.logger.logMessage(this.libName + ' - Dispose diagnostic collection', 'INFO');
 
-        let args = ["-q", "-", "--report=json"];
+                    progress.report({ message: EXTENSION_NAME + `: Started PHP CS command` });
 
-        this.logger.logMessage(this.libName + ' - Extracting standards from directory structure', 'INFO');
+                    this.disposeDiagnosticCollection();
 
-        const filename = activeEditor().document.fileName;
-        const opts = { cwd: path.dirname(filename) };
-        let standardsFileName = config('phpCustomStandardsFile');
-        let standardsFile = undefined;
-        if ('' !== standardsFileName) {
-            standardsFile = this.getFilePath([standardsFileName], opts.cwd);
-        }
+                    this.logger.logMessage(this.libName + ' - The document URI ' + activeEditor().document.uri, 'INFO');
 
-        let standards = '';
+                    let text = activeEditor().document.getText();
 
-        if (undefined === standardsFile) {
-            this.logger.logMessage(this.libName + ' - No standards in dir structure - fall back to the configuration', 'INFO');
-            this.logger.logMessage(this.libName + ' - Extracting standards from the configuration', 'INFO');
-            standards = config('phpStandards');
-        } else {
-            this.logger.logMessage(this.libName + ' - Standards config file found!', 'INFO');
-            standards = standardsFile;
-        }
+                    let snifferCommand = config('phpSnifferCommand');
 
-        if ('' !== standards) {
-            standards = "--standard=" + standards;
+                    if ('' === snifferCommand) {
+                        this.logger.logMessage(this.libName + ' is command is not provided', 'ERROR');
+                        resolve(null);
+                        return showErrorMessage(this.libName + ` executable is not set.`);
+                    }
 
-            args.push(standards);
-        }
+                    let commandExists = require('command-exists').sync;
 
-        this.logger.logMessage(this.libName + ' - Command - "' + snifferCommand + '"', 'INFO');
+                    if (!commandExists(snifferCommand)) {
+                        this.logger.logMessage(this.libName + ' - Executable is set, but can not be found: "' + snifferCommand + '"', 'ERROR');
+                        resolve(null);
+                        return showErrorMessage(this.libName + ` executable is not found - ` + snifferCommand);
+                    }
 
-        this.logger.logMessage(this.libName + ' - Spawning the command with parameters - ' + args.join(' '), 'INFO');
-        const child = spawn(snifferCommand, args, { encoding: 'utf8' });
+                    let args = ["-q", "-", "--report=json"];
 
-        this.logger.logMessage(this.libName + ' - Writing the extracted file content to the stdin', 'INFO');
-        child.stdin.write(text);
-        child.stdin.end();
+                    this.logger.logMessage(this.libName + ' - Extracting standards from directory structure', 'INFO');
 
-        // let stdout = "";
-        // let stderr = "";
+                    const filename = activeEditor().document.fileName;
+                    const opts = { cwd: path.dirname(filename) };
+                    let standardsFileName = config('phpCustomStandardsFile');
+                    let standardsFile = undefined;
+                    if ('' !== standardsFileName) {
+                        standardsFile = this.getFilePath([standardsFileName], opts.cwd);
+                    }
 
-        // child.stdout.on("data", (data) => (stdout += data));
-        // child.stderr.on("data", (data) => (stderr += data));
+                    let standards = '';
 
-        child.on('exit', (exitCode, signalCode) => {
-            switch (exitCode) {
-                case null: {
-                    break;
-                }
-                case 0: {
-                    // showMessage('phpcs - No errors found');
-                    break
-                }
-                case 1: {
-                    // showMessage('phpcs - All fixable errors were resolved PHPCS');
-                    break
-                }
-                case 2: {
-                    // showMessage('phpcs - Failed to fix some of the fixable errors');
-                    break
-                }
-                case 3: {
-                    showMessage(this.libName + ' - Mismatch configuration provided');
-                    break
-                }
-                default:
-                    break;
+                    if (undefined === standardsFile) {
+                        this.logger.logMessage(this.libName + ' - No standards in dir structure - fall back to the configuration', 'INFO');
+                        this.logger.logMessage(this.libName + ' - Extracting standards from the configuration', 'INFO');
+                        standards = config('phpStandards');
+                    } else {
+                        this.logger.logMessage(this.libName + ' - Standards config file found!', 'INFO');
+                        standards = standardsFile;
+                    }
+
+                    if ('' !== standards) {
+                        standards = "--standard=" + standards;
+
+                        args.push(standards);
+                    }
+
+                    progress.report({ message: EXTENSION_NAME + `: Spawning PHP CS command` });
+
+                    this.logger.logMessage(this.libName + ' - Command - "' + snifferCommand + '"', 'INFO');
+
+                    this.logger.logMessage(this.libName + ' - Spawning the command with parameters - ' + args.join(' '), 'INFO');
+                    const child = spawn(snifferCommand, args, { encoding: 'utf8' });
+
+                    this.logger.logMessage(this.libName + ' - Writing the extracted file content to the stdin', 'INFO');
+                    child.stdin.write(text);
+                    child.stdin.end();
+
+                    // let stdout = "";
+                    // let stderr = "";
+
+                    // child.stdout.on("data", (data) => (stdout += data));
+                    // child.stderr.on("data", (data) => (stderr += data));
+
+                    child.on('exit', (exitCode, signalCode) => {
+                        switch (exitCode) {
+                            case null: {
+                                break;
+                            }
+                            case 0: {
+                                // showMessage('phpcs - No errors found');
+                                break
+                            }
+                            case 1: {
+                                // showMessage('phpcs - All fixable errors were resolved PHPCS');
+                                break
+                            }
+                            case 2: {
+                                // showMessage('phpcs - Failed to fix some of the fixable errors');
+                                break
+                            }
+                            case 3: {
+                                showMessage(this.libName + ' - Mismatch configuration provided');
+                                break
+                            }
+                            default:
+                                break;
+                        }
+
+                        progress.report({ increment: 100, message: EXTENSION_NAME + `: PHP CS Finished` });
+                        resolve(null);
+                    });
+
+                    await this.format(child);
+
+                    // let diagnosticCollection = vscode.languages.createDiagnosticCollection(
+                    //     "php"
+                    // );
+
+                    // const range = new vscode.Range(
+                    //     0,
+                    //     0,
+                    //     0,
+                    //     0
+                    // );
+
+                    // const diagnostic = new vscode.Diagnostic(
+                    //     range,
+                    //     'Mamata si traka',
+                    //     vscode.DiagnosticSeverity.Error
+                    // );
+                    // diagnostic.source = "kur";
+
+                    // const diagnostics = [];
+
+                    // diagnostics.push(diagnostic);
+
+                    // diagnosticCollection.set(this.resolver.activeEditor().document.uri, diagnostics);
+                }));
+
             }
-        });
-
-        await this.format(child);
-
-        // let diagnosticCollection = vscode.languages.createDiagnosticCollection(
-        //     "php"
-        // );
-
-        // const range = new vscode.Range(
-        //     0,
-        //     0,
-        //     0,
-        //     0
-        // );
-
-        // const diagnostic = new vscode.Diagnostic(
-        //     range,
-        //     'Mamata si traka',
-        //     vscode.DiagnosticSeverity.Error
-        // );
-        // diagnostic.source = "kur";
-
-        // const diagnostics = [];
-
-        // diagnostics.push(diagnostic);
-
-        // diagnosticCollection.set(this.resolver.activeEditor().document.uri, diagnostics);
+        );
     }
 
     /**
@@ -227,7 +254,7 @@ class PHPCs {
                     for (const file in snifferResponse['files']) {
                         const diagnostics = [];
                         snifferResponse['files'][file].messages.forEach(
-                            ({ message, line, column, type, source }) => {
+                            ({ message, line, column, type, source, severity, fixable }) => {
                                 const zeroLine = line - 1;
                                 const ZeroColumn = column - 1;
 
@@ -239,12 +266,12 @@ class PHPCs {
                                     ZeroColumn
                                 );
 
-                                const severity =
+                                const severityDiagnostic =
                                     type === PHPCSMessageType.ERROR
                                         ? vscode.DiagnosticSeverity.Error
                                         : vscode.DiagnosticSeverity.Warning;
 
-                                this.logger.logMessage(this.libName + ' - Determining the type of severity ' + severity, 'INFO');
+                                this.logger.logMessage(this.libName + ' - Determining the type of severity ' + severityDiagnostic, 'INFO');
 
                                 let output = message + "\nSource: " + source;
 
@@ -253,9 +280,10 @@ class PHPCs {
                                 const diagnostic = new vscode.Diagnostic(
                                     range,
                                     output,
-                                    severity
+                                    severityDiagnostic
                                 );
                                 diagnostic.source = this.libName;
+                                diagnostic.information = { 'provider': 'php-resolver', 'source': source, 'severity': severity, 'message': message, 'type': type, 'fixable': fixable, 'line': line };
                                 this.logger.logMessage(this.libName + ' - Adding to diagnostic collection', 'INFO');
                                 diagnostics.push(diagnostic);
                             }
@@ -265,9 +293,10 @@ class PHPCs {
                     }
                     resolve();
                 } catch (e) {
-                    this.logger.logMessage(this.libName + ' - Failed collecting proper output - ' + e.message, 'ERROR');
+                    this.logger.logMessage(this.libName + ' - Failed collecting proper output - ' + e.message, 'FATAL');
                     this.logger.logMessage(this.libName + ' - Received - ' + dataReceived, 'INFO');
-                    resolve(showErrorMessage(this.libName + ` Fatal error occurred.`));
+                    showErrorMessage(this.libName + ` Cannot validate check for parse errors.`)
+                    resolve();
                 }
             });
         });

@@ -6,8 +6,10 @@ let PHPCs = require('./PHPCs');
 let Logger = require('./Logger');
 let VersionNotifier = require('./VersionNotifier');
 let ErrorLogViewer = require('./ErrorLogViewer');
-let FileSize = require('./FileSize');
+// let FileSize = require('./FileSize');
 let { activeEditor, config } = require('./Helpers');
+let createDecoratorClass = require('./ExplorerDecorator');
+let codeActions = require("./CodeActions");
 
 let errorLogger = null;
 
@@ -155,9 +157,9 @@ function updateConfig(context) {
     return configuration;
 }
 
-function activate(context) {
+async function activate(context) {
     let resolver = new Resolver;
-    let fileSize = new FileSize;
+    //let fileSize = new FileSize;
 
     if ('' !== config('phpLogFile')) {
         errorLogger = new ErrorLogViewer;
@@ -204,7 +206,7 @@ function activate(context) {
     );
 
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((event) => {
-        fileSize.loadFileSize();
+        //fileSize.loadFileSize();
     }));
 
     if ('' !== config('phpSnifferCommand')) {
@@ -228,10 +230,24 @@ function activate(context) {
 
         context.subscriptions.push(onChangeSniff);
 
+        let saveTimers = new Map(); // Keyed by file name.
+
         var onSave = vscode.workspace.onDidSaveTextDocument((document) => {
             if (document.languageId === 'php') {
-                logger.logMessage('Document is saved - starting code sniffer', 'INFO');
-                phpcs.fixPHP();
+
+                const fileName = document.fileName;
+
+                const timer = saveTimers.get(fileName);
+                if (timer) {
+                    clearTimeout(timer);
+                }
+
+                saveTimers.set(fileName, setTimeout(() => {
+                    saveTimers.delete(fileName);
+                    logger.logMessage('Document is saved - starting code sniffer', 'INFO');
+                    phpcs.fixPHP();
+                }, 1000));
+
             }
         });
     } else {
@@ -345,8 +361,8 @@ function activate(context) {
     // context.subscriptions.push(phpcs);
     // context.subscriptions.push(logger);
 
-    logger.logMessage('Starting file size', 'INFO');
-    fileSize.loadFileSize();
+    // logger.logMessage('Starting file size', 'INFO');
+    //fileSize.loadFileSize();
 
     // var onOpen = vscode.workspace.onDidOpenTextDocument((document) => {
     //     if (document.languageId === 'php') {
@@ -355,14 +371,14 @@ function activate(context) {
     //     }
     // });
 
-    onSaveSniff = vscode.workspace.onDidSaveTextDocument((document) => {
-        logger.logMessage('Document is saved - loading file size', 'INFO');
-        fileSize.loadFileSize();
-        // if (document.languageId === 'php') {
-        //     logger.logMessage('Document is saved - starting code sniffer', 'INFO');
-        //     phpcs.fixPHP();
-        // }
-    });
+    //onSaveSniff = vscode.workspace.onDidSaveTextDocument((document) => {
+    // logger.logMessage('Document is saved - loading file size', 'INFO');
+    //fileSize.loadFileSize();
+    // if (document.languageId === 'php') {
+    //     logger.logMessage('Document is saved - starting code sniffer', 'INFO');
+    //     phpcs.fixPHP();
+    // }
+    // });
 
     var onChangeConfig = vscode.workspace.onDidChangeConfiguration(() => {
         updateConfig(context);
@@ -371,6 +387,55 @@ function activate(context) {
     // context.subscriptions.push(onOpen);
     context.subscriptions.push(onSave);
     context.subscriptions.push(onChangeConfig);
+
+    let changeTimers = new Map(); // Keyed by file name.
+
+    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
+        if (
+            event &&
+            event.document.languageId === 'php'
+        ) {
+            if (event.contentChanges.length > 0) {
+                const fileName = event.document.fileName;
+
+                const timer = changeTimers.get(fileName);
+                if (timer) {
+                    clearTimeout(timer);
+                }
+
+                changeTimers.set(fileName, setTimeout(() => {
+                    changeTimers.delete(fileName);
+                    logger.logMessage('Document is changed - starting diagnostic', 'INFO');
+                    phpcs.fixPHP();
+                }, 1000));
+            }
+
+        }
+    }));
+
+    if (config('fileSizeOnHover')) {
+        let decorator = await createDecoratorClass();
+
+        const watcher = vscode.workspace.createFileSystemWatcher('**/*');
+        watcher.onDidChange(uri => decorator.onFileChanged(uri));
+    }
+
+    let provider = {
+        provideCodeActions: function (document, range, context, token) {
+            let diagnostics = context.diagnostics;
+            let actions = [];
+            for (let diagnostic of diagnostics) {
+                const action = (0, codeActions.createQuickFix)(diagnostic, document, range);
+                if (action !== undefined) {
+                    actions.push(action);
+                }
+            }
+            return actions;
+        }
+    };
+    context.subscriptions.push(vscode.languages.registerCodeActionsProvider({ scheme: 'file', language: 'php' }, provider, {
+        providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
+    }));
 }
 
 exports.activate = activate;
