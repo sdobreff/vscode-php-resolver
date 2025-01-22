@@ -24,7 +24,7 @@ class PHPCs {
     async fixPHP() {
 
         if (config('limitCodeLines') < activeEditor().document.lineCount) {
-            this.logger.logMessage(this.libName + ' - Files longer than 3K lines are not fixed for resource purposes', 'INFO');
+            this.logger.logMessage(this.libName + ' - Files longer than ' + config('limitCodeLines') + ' lines are not fixed - saving resources', 'INFO');
 
             return;
         }
@@ -293,9 +293,10 @@ class PHPCs {
                     }
                     resolve();
                 } catch (e) {
-                    this.logger.logMessage(this.libName + ' - Failed collecting proper output - ' + e.message, 'ERROR');
+                    this.logger.logMessage(this.libName + ' - Failed collecting proper output - ' + e.message, 'FATAL');
                     this.logger.logMessage(this.libName + ' - Received - ' + dataReceived, 'INFO');
-                    resolve(showErrorMessage(this.libName + ` Fatal error occurred.`));
+                    showErrorMessage(this.libName + ` Cannot validate check for parse errors.`)
+                    resolve();
                 }
             });
         });

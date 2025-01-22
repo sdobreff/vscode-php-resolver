@@ -7,6 +7,8 @@
 **PHP Resolver** is an extension which is using information from different PHP tools and help you resolve most of the **PHP problems**.
 It's purpose is to try to provide all-in-one solution for resolving problems with your **PHP** source files.
 
+![PHP Resolver](./images/extension-preview.gif)
+
 - Automatically generates **PHP namespaces** for the given class based on the `composer.json`. Both **psr-4** and **psr-0** are supported.
 - After namespaces importing, the classes are automatically collapsed.
 - Extension supports **importing classes** not only from PSR4 and PSR0 but also **WordPress** format - `class-<name of the class>`. It automatically **checks for namespace declarations** in the files and extracts data from there.
@@ -354,9 +356,13 @@ In order for that to work properly, you have to manually provide the correct set
 
 Extension supports filesize info, which is shown in the standard Explorer view on hover. Currently only supports files (not directories) - file of any type can be checked by just holding the mouse over the file and the size will be added in the hint in human readable format.
 
+![PHP Resolver](./images/file-size-on-hover.gif)
+
 ## PHPCS rules ignore
 
 Extension supports inline rules ignore (using inline phpcs:ignore syntax) for the errors / problems collected from the phpcs. Multiple rules syntax is also supported and in use - just use Quick Fix menu, or go to problems tab.
+
+![PHP Resolver](./images/inline-phpcs-ignore.gif)
 
 ## Commands
 
