@@ -19,7 +19,9 @@ let phpcs = null;
 let phpBeautyFormatter = null;
 let logger = new Logger;
 let onSaveSniff = null;
-let onChangeSniff = null;
+let onChangeActiveDocument = null;
+let onSave = null;
+let onDidChange = null;
 let clearErrorOutput = null;
 
 function updateConfig(context) {
@@ -105,44 +107,45 @@ function updateConfig(context) {
             phpcs = new PHPCs();
             phpcs.setLogger(logger);
         }
-        if (null !== onChangeSniff) {
-            onChangeSniff.dispose();
-            onChangeSniff = null;
-            logger.logMessage('Sniffer path is changed - Removing old Sniffer on change', 'INFO');
-        }
-        if (null !== onSaveSniff) {
-            onSaveSniff.dispose();
-            onSaveSniff = null;
-            logger.logMessage('Sniffer path is removed - Removing old Sniffer on save', 'INFO');
-        }
 
-        onChangeSniff = vscode.window.onDidChangeActiveTextEditor((event) => {
-            if (
-                event &&
-                event.document.languageId === 'php'
-            ) {
-                logger.logMessage('Switched to new file - starting code sniffer', 'INFO');
-                phpcs.fixPHP();
-            }
-        })
+        // if (null !== onChangeActiveDocument) {
+        //     onChangeActiveDocument.dispose();
+        //     onChangeActiveDocument = null;
+        //     logger.logMessage('Sniffer path is changed - Removing old Sniffer on change', 'INFO');
+        // }
+        // if (null !== onSaveSniff) {
+        //     onSaveSniff.dispose();
+        //     onSaveSniff = null;
+        //     logger.logMessage('Sniffer path is removed - Removing old Sniffer on save', 'INFO');
+        // }
 
-        context.subscriptions.push(onChangeSniff);
+        // onChangeActiveDocument = vscode.window.onDidChangeActiveTextEditor((event) => {
+        //     if (
+        //         event &&
+        //         event.document.languageId === 'php'
+        //     ) {
+        //         logger.logMessage('Switched to new file - starting code sniffer', 'INFO');
+        //         phpcs.fixPHP();
+        //     }
+        // })
 
-        onSaveSniff = vscode.workspace.onDidSaveTextDocument((document) => {
-            if (document.languageId === 'php') {
-                logger.logMessage('Document is saved - starting code sniffer', 'INFO');
-                phpcs.fixPHP();
-            }
-        });
-        context.subscriptions.push(onSaveSniff);
+        // context.subscriptions.push(onChangeActiveDocument);
+
+        // onSaveSniff = vscode.workspace.onDidSaveTextDocument((document) => {
+        //     if (document.languageId === 'php') {
+        //         logger.logMessage('Document is saved - starting code sniffer', 'INFO');
+        //         phpcs.fixPHP();
+        //     }
+        // });
+        // context.subscriptions.push(onSaveSniff);
     } else {
         logger.logMessage('Sniffer path is not set - sniffer can not check PHP files', 'INFO');
-        // if (null !== phpcs) {
-        //     phpcs.disposeDiagnosticCollection();
-        // }
-        if (null !== onChangeSniff) {
-            onChangeSniff.dispose();
-            onChangeSniff = null;
+        if (null !== phpcs) {
+            phpcs.disposeDiagnosticCollection();
+        }
+        if (null !== onChangeActiveDocument) {
+            onChangeActiveDocument.dispose();
+            onChangeActiveDocument = null;
             logger.logMessage('Sniffer path is removed - Sniffer on change is unregistered', 'INFO');
         }
         if (null !== onSaveSniff) {
@@ -209,6 +212,8 @@ async function activate(context) {
         //fileSize.loadFileSize();
     }));
 
+    var saveTimers = new Map(); // Keyed by file name.
+
     if ('' !== config('phpSnifferCommand')) {
         phpcs = new PHPCs;
         phpcs.setLogger(logger);
@@ -218,7 +223,7 @@ async function activate(context) {
             phpcs.fixPHP();
         }
 
-        onChangeSniff = vscode.window.onDidChangeActiveTextEditor((event) => {
+        onChangeActiveDocument = vscode.window.onDidChangeActiveTextEditor((event) => {
             if (
                 event &&
                 event.document.languageId === 'php'
@@ -228,12 +233,10 @@ async function activate(context) {
             }
         })
 
-        context.subscriptions.push(onChangeSniff);
+        context.subscriptions.push(onChangeActiveDocument);
 
-        let saveTimers = new Map(); // Keyed by file name.
-
-        var onSave = vscode.workspace.onDidSaveTextDocument((document) => {
-            if (document.languageId === 'php') {
+        onSave = vscode.workspace.onDidSaveTextDocument((document) => {
+            if (document.languageId === 'php' && phpcs) {
 
                 const fileName = document.fileName;
 
@@ -253,10 +256,11 @@ async function activate(context) {
 
         context.subscriptions.push(onSave);
 
-        context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
+        onDidChange = vscode.workspace.onDidChangeTextDocument((event) => {
             if (
                 event &&
-                event.document.languageId === 'php'
+                event.document.languageId === 'php' &&
+                phpcs
             ) {
                 if (event.contentChanges.length > 0) {
                     const fileName = event.document.fileName;
@@ -274,7 +278,9 @@ async function activate(context) {
                 }
 
             }
-        }));
+        });
+
+        context.subscriptions.push(onDidChange);
     } else {
         logger.logMessage('Sniffer path is not set - sniffer can not check the current file', 'INFO');
     }
