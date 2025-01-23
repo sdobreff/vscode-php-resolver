@@ -250,6 +250,31 @@ async function activate(context) {
 
             }
         });
+
+        context.subscriptions.push(onSave);
+
+        context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
+            if (
+                event &&
+                event.document.languageId === 'php'
+            ) {
+                if (event.contentChanges.length > 0) {
+                    const fileName = event.document.fileName;
+
+                    const timer = saveTimers.get(fileName);
+                    if (timer) {
+                        clearTimeout(timer);
+                    }
+
+                    saveTimers.set(fileName, setTimeout(() => {
+                        saveTimers.delete(fileName);
+                        logger.logMessage('Document is changed - starting diagnostic', 'INFO');
+                        phpcs.fixPHP();
+                    }, 1000));
+                }
+
+            }
+        }));
     } else {
         logger.logMessage('Sniffer path is not set - sniffer can not check the current file', 'INFO');
     }
@@ -385,33 +410,8 @@ async function activate(context) {
     });
 
     // context.subscriptions.push(onOpen);
-    context.subscriptions.push(onSave);
+
     context.subscriptions.push(onChangeConfig);
-
-    let changeTimers = new Map(); // Keyed by file name.
-
-    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
-        if (
-            event &&
-            event.document.languageId === 'php'
-        ) {
-            if (event.contentChanges.length > 0) {
-                const fileName = event.document.fileName;
-
-                const timer = changeTimers.get(fileName);
-                if (timer) {
-                    clearTimeout(timer);
-                }
-
-                changeTimers.set(fileName, setTimeout(() => {
-                    changeTimers.delete(fileName);
-                    logger.logMessage('Document is changed - starting diagnostic', 'INFO');
-                    phpcs.fixPHP();
-                }, 1000));
-            }
-
-        }
-    }));
 
     if (config('fileSizeOnHover')) {
         let decorator = await createDecoratorClass();
