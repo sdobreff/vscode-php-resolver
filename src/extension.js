@@ -23,7 +23,7 @@ let onSave = null;
 let onDidChange = null;
 let clearErrorOutput = null;
 
-function updateConfig(context) {
+async function updateConfig(context) {
 
     var configuration = {
         phpLogFile: config('phpLogFile'),
@@ -123,7 +123,7 @@ function updateConfig(context) {
         }
 
         if (null === onSave) {
-            onSave = vscode.workspace.onDidSaveTextDocument((document) => {
+            onSave = await vscode.workspace.onDidSaveTextDocument((document) => {
                 if (document.languageId === 'php' && phpcs) {
 
                     const fileName = document.fileName;
@@ -146,7 +146,7 @@ function updateConfig(context) {
         }
 
         if (null === onDidChange) {
-            onDidChange = vscode.workspace.onDidChangeTextDocument((event) => {
+            onDidChange = await vscode.workspace.onDidChangeTextDocument((event) => {
                 if (
                     event &&
                     event.document.languageId === 'php' &&
@@ -215,8 +215,8 @@ function updateConfig(context) {
             logger.logMessage('Sniffer path is removed - Sniffer on change active document is unregistered', 'INFO');
         }
         if (null !== onSave) {
-            onSaveSniff.dispose();
-            onSaveSniff = null;
+            onSave.dispose();
+            onSave = null;
             logger.logMessage('Sniffer path is removed - Sniffer on save is unregistered', 'INFO');
         }
         if (null !== onDidChange) {
@@ -294,7 +294,7 @@ async function activate(context) {
             phpcs.fixPHP();
         }
 
-        onChangeActiveDocument = vscode.window.onDidChangeActiveTextEditor((event) => {
+        onChangeActiveDocument = await vscode.window.onDidChangeActiveTextEditor((event) => {
             if (
                 event &&
                 event.document.languageId === 'php'
@@ -306,7 +306,7 @@ async function activate(context) {
 
         context.subscriptions.push(onChangeActiveDocument);
 
-        onSave = vscode.workspace.onDidSaveTextDocument((document) => {
+        onSave = await vscode.workspace.onDidSaveTextDocument((document) => {
             if (document.languageId === 'php' && phpcs) {
 
                 const fileName = document.fileName;
@@ -327,7 +327,7 @@ async function activate(context) {
 
         context.subscriptions.push(onSave);
 
-        onDidChange = vscode.workspace.onDidChangeTextDocument((event) => {
+        onDidChange = await vscode.workspace.onDidChangeTextDocument((event) => {
             if (
                 event &&
                 event.document.languageId === 'php' &&
@@ -482,7 +482,7 @@ async function activate(context) {
     // }
     // });
 
-    var onChangeConfig = vscode.workspace.onDidChangeConfiguration(() => {
+    var onChangeConfig = await vscode.workspace.onDidChangeConfiguration(() => {
         updateConfig(context);
     });
 
@@ -513,6 +513,27 @@ async function activate(context) {
     context.subscriptions.push(vscode.languages.registerCodeActionsProvider({ scheme: 'file', language: 'php' }, provider, {
         providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
     }));
+
+    // const providerSnippet = vscode.languages.registerCompletionItemProvider(
+    //     'php',
+    //     {
+    //         provideCompletionItems(document, position) {
+    //             const linePrefix = document.lineAt(position).text.substr(0, position.character);
+    //             if (!linePrefix.endsWith('/***')) {
+    //                 return undefined;
+    //             }
+
+    //             const snippetCompletion = new vscode.CompletionItem('My Snippet');
+    //             snippetCompletion.insertText = new vscode.SnippetString('console.log(${1:value});');
+    //             snippetCompletion.documentation = new vscode.MarkdownString('Log to console');
+
+    //             return [snippetCompletion];
+    //         }
+    //     },
+    //     '*' // triggered whenever a '.' is typed
+    // );
+
+    // context.subscriptions.push(providerSnippet);
 }
 
 exports.activate = activate;

@@ -1,5 +1,8 @@
 # Change Log
 
+## 2.3.2
+- Bug fixes and further code optimizations.
+
 ## 2.3.1
 - Code optimizations and fixes.
 
