@@ -18,7 +18,6 @@ let phpfixer = null;
 let phpcs = null;
 let phpBeautyFormatter = null;
 let logger = new Logger;
-let onSaveSniff = null;
 let onChangeActiveDocument = null;
 let onSave = null;
 let onDidChange = null;
@@ -108,6 +107,73 @@ function updateConfig(context) {
             phpcs.setLogger(logger);
         }
 
+        if (null === onChangeActiveDocument) {
+
+            onChangeActiveDocument = vscode.window.onDidChangeActiveTextEditor((event) => {
+                if (
+                    event &&
+                    event.document.languageId === 'php'
+                ) {
+                    logger.logMessage('Switched to new file - starting code sniffer', 'INFO');
+                    phpcs.fixPHP();
+                }
+            })
+
+            context.subscriptions.push(onChangeActiveDocument);
+        }
+
+        if (null === onSave) {
+            onSave = vscode.workspace.onDidSaveTextDocument((document) => {
+                if (document.languageId === 'php' && phpcs) {
+
+                    const fileName = document.fileName;
+
+                    const timer = saveTimers.get(fileName);
+                    if (timer) {
+                        clearTimeout(timer);
+                    }
+
+                    saveTimers.set(fileName, setTimeout(() => {
+                        saveTimers.delete(fileName);
+                        logger.logMessage('Document is saved - starting code sniffer', 'INFO');
+                        phpcs.fixPHP();
+                    }, 1000));
+
+                }
+            });
+
+            context.subscriptions.push(onSave);
+        }
+
+        if (null === onDidChange) {
+            onDidChange = vscode.workspace.onDidChangeTextDocument((event) => {
+                if (
+                    event &&
+                    event.document.languageId === 'php' &&
+                    phpcs
+                ) {
+                    if (event.contentChanges.length > 0) {
+                        const fileName = event.document.fileName;
+
+                        const timer = saveTimers.get(fileName);
+                        if (timer) {
+                            clearTimeout(timer);
+                        }
+
+                        saveTimers.set(fileName, setTimeout(() => {
+                            saveTimers.delete(fileName);
+                            logger.logMessage('Document is changed - starting diagnostic', 'INFO');
+                            phpcs.fixPHP();
+                        }, 1000));
+                    }
+
+                }
+            });
+
+            context.subscriptions.push(onDidChange);
+        }
+
+
         // if (null !== onChangeActiveDocument) {
         //     onChangeActiveDocument.dispose();
         //     onChangeActiveDocument = null;
@@ -146,12 +212,17 @@ function updateConfig(context) {
         if (null !== onChangeActiveDocument) {
             onChangeActiveDocument.dispose();
             onChangeActiveDocument = null;
-            logger.logMessage('Sniffer path is removed - Sniffer on change is unregistered', 'INFO');
+            logger.logMessage('Sniffer path is removed - Sniffer on change active document is unregistered', 'INFO');
         }
-        if (null !== onSaveSniff) {
+        if (null !== onSave) {
             onSaveSniff.dispose();
             onSaveSniff = null;
             logger.logMessage('Sniffer path is removed - Sniffer on save is unregistered', 'INFO');
+        }
+        if (null !== onDidChange) {
+            onDidChange.dispose();
+            onDidChange = null;
+            logger.logMessage('Sniffer path is removed - Sniffer on change is unregistered', 'INFO');
         }
         delete phpcs;
         phpcs = null;
@@ -208,9 +279,9 @@ async function activate(context) {
         vscode.commands.registerCommand('phpResolver.fixer', () => phpfixer.fixPHP())
     );
 
-    context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((event) => {
-        //fileSize.loadFileSize();
-    }));
+    // context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((event) => {
+    // fileSize.loadFileSize();
+    // }));
 
     var saveTimers = new Map(); // Keyed by file name.
 
