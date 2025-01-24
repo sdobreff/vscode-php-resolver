@@ -1,5 +1,8 @@
 # Change Log
 
+## 2.3.1
+- Code optimizations and fixes.
+
 ## 2.3
 - UI changes and code fixes, workflow improvements.
 

@@ -502,4 +502,4 @@ You can override these default keybindings on your `keybindings.json`.
 
 - [@StoilDobreff](https://github.com/sdobreff/)
 
-Copyright (c) 2022 Stoil Dobreff
+Copyright (c) 2025 Stoil Dobreff

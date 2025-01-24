@@ -18,8 +18,9 @@ let phpfixer = null;
 let phpcs = null;
 let phpBeautyFormatter = null;
 let logger = new Logger;
-let onSaveSniff = null;
-let onChangeSniff = null;
+let onChangeActiveDocument = null;
+let onSave = null;
+let onDidChange = null;
 let clearErrorOutput = null;
 
 function updateConfig(context) {
@@ -105,50 +106,123 @@ function updateConfig(context) {
             phpcs = new PHPCs();
             phpcs.setLogger(logger);
         }
-        if (null !== onChangeSniff) {
-            onChangeSniff.dispose();
-            onChangeSniff = null;
-            logger.logMessage('Sniffer path is changed - Removing old Sniffer on change', 'INFO');
+
+        if (null === onChangeActiveDocument) {
+
+            onChangeActiveDocument = vscode.window.onDidChangeActiveTextEditor((event) => {
+                if (
+                    event &&
+                    event.document.languageId === 'php'
+                ) {
+                    logger.logMessage('Switched to new file - starting code sniffer', 'INFO');
+                    phpcs.fixPHP();
+                }
+            })
+
+            context.subscriptions.push(onChangeActiveDocument);
         }
-        if (null !== onSaveSniff) {
-            onSaveSniff.dispose();
-            onSaveSniff = null;
-            logger.logMessage('Sniffer path is removed - Removing old Sniffer on save', 'INFO');
+
+        if (null === onSave) {
+            onSave = vscode.workspace.onDidSaveTextDocument((document) => {
+                if (document.languageId === 'php' && phpcs) {
+
+                    const fileName = document.fileName;
+
+                    const timer = saveTimers.get(fileName);
+                    if (timer) {
+                        clearTimeout(timer);
+                    }
+
+                    saveTimers.set(fileName, setTimeout(() => {
+                        saveTimers.delete(fileName);
+                        logger.logMessage('Document is saved - starting code sniffer', 'INFO');
+                        phpcs.fixPHP();
+                    }, 1000));
+
+                }
+            });
+
+            context.subscriptions.push(onSave);
         }
 
-        onChangeSniff = vscode.window.onDidChangeActiveTextEditor((event) => {
-            if (
-                event &&
-                event.document.languageId === 'php'
-            ) {
-                logger.logMessage('Switched to new file - starting code sniffer', 'INFO');
-                phpcs.fixPHP();
-            }
-        })
+        if (null === onDidChange) {
+            onDidChange = vscode.workspace.onDidChangeTextDocument((event) => {
+                if (
+                    event &&
+                    event.document.languageId === 'php' &&
+                    phpcs
+                ) {
+                    if (event.contentChanges.length > 0) {
+                        const fileName = event.document.fileName;
 
-        context.subscriptions.push(onChangeSniff);
+                        const timer = saveTimers.get(fileName);
+                        if (timer) {
+                            clearTimeout(timer);
+                        }
 
-        onSaveSniff = vscode.workspace.onDidSaveTextDocument((document) => {
-            if (document.languageId === 'php') {
-                logger.logMessage('Document is saved - starting code sniffer', 'INFO');
-                phpcs.fixPHP();
-            }
-        });
-        context.subscriptions.push(onSaveSniff);
+                        saveTimers.set(fileName, setTimeout(() => {
+                            saveTimers.delete(fileName);
+                            logger.logMessage('Document is changed - starting diagnostic', 'INFO');
+                            phpcs.fixPHP();
+                        }, 1000));
+                    }
+
+                }
+            });
+
+            context.subscriptions.push(onDidChange);
+        }
+
+
+        // if (null !== onChangeActiveDocument) {
+        //     onChangeActiveDocument.dispose();
+        //     onChangeActiveDocument = null;
+        //     logger.logMessage('Sniffer path is changed - Removing old Sniffer on change', 'INFO');
+        // }
+        // if (null !== onSaveSniff) {
+        //     onSaveSniff.dispose();
+        //     onSaveSniff = null;
+        //     logger.logMessage('Sniffer path is removed - Removing old Sniffer on save', 'INFO');
+        // }
+
+        // onChangeActiveDocument = vscode.window.onDidChangeActiveTextEditor((event) => {
+        //     if (
+        //         event &&
+        //         event.document.languageId === 'php'
+        //     ) {
+        //         logger.logMessage('Switched to new file - starting code sniffer', 'INFO');
+        //         phpcs.fixPHP();
+        //     }
+        // })
+
+        // context.subscriptions.push(onChangeActiveDocument);
+
+        // onSaveSniff = vscode.workspace.onDidSaveTextDocument((document) => {
+        //     if (document.languageId === 'php') {
+        //         logger.logMessage('Document is saved - starting code sniffer', 'INFO');
+        //         phpcs.fixPHP();
+        //     }
+        // });
+        // context.subscriptions.push(onSaveSniff);
     } else {
         logger.logMessage('Sniffer path is not set - sniffer can not check PHP files', 'INFO');
-        // if (null !== phpcs) {
-        //     phpcs.disposeDiagnosticCollection();
-        // }
-        if (null !== onChangeSniff) {
-            onChangeSniff.dispose();
-            onChangeSniff = null;
-            logger.logMessage('Sniffer path is removed - Sniffer on change is unregistered', 'INFO');
+        if (null !== phpcs) {
+            phpcs.disposeDiagnosticCollection();
         }
-        if (null !== onSaveSniff) {
+        if (null !== onChangeActiveDocument) {
+            onChangeActiveDocument.dispose();
+            onChangeActiveDocument = null;
+            logger.logMessage('Sniffer path is removed - Sniffer on change active document is unregistered', 'INFO');
+        }
+        if (null !== onSave) {
             onSaveSniff.dispose();
             onSaveSniff = null;
             logger.logMessage('Sniffer path is removed - Sniffer on save is unregistered', 'INFO');
+        }
+        if (null !== onDidChange) {
+            onDidChange.dispose();
+            onDidChange = null;
+            logger.logMessage('Sniffer path is removed - Sniffer on change is unregistered', 'INFO');
         }
         delete phpcs;
         phpcs = null;
@@ -205,9 +279,11 @@ async function activate(context) {
         vscode.commands.registerCommand('phpResolver.fixer', () => phpfixer.fixPHP())
     );
 
-    context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((event) => {
-        //fileSize.loadFileSize();
-    }));
+    // context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((event) => {
+    // fileSize.loadFileSize();
+    // }));
+
+    var saveTimers = new Map(); // Keyed by file name.
 
     if ('' !== config('phpSnifferCommand')) {
         phpcs = new PHPCs;
@@ -218,7 +294,7 @@ async function activate(context) {
             phpcs.fixPHP();
         }
 
-        onChangeSniff = vscode.window.onDidChangeActiveTextEditor((event) => {
+        onChangeActiveDocument = vscode.window.onDidChangeActiveTextEditor((event) => {
             if (
                 event &&
                 event.document.languageId === 'php'
@@ -228,12 +304,10 @@ async function activate(context) {
             }
         })
 
-        context.subscriptions.push(onChangeSniff);
+        context.subscriptions.push(onChangeActiveDocument);
 
-        let saveTimers = new Map(); // Keyed by file name.
-
-        var onSave = vscode.workspace.onDidSaveTextDocument((document) => {
-            if (document.languageId === 'php') {
+        onSave = vscode.workspace.onDidSaveTextDocument((document) => {
+            if (document.languageId === 'php' && phpcs) {
 
                 const fileName = document.fileName;
 
@@ -250,6 +324,34 @@ async function activate(context) {
 
             }
         });
+
+        context.subscriptions.push(onSave);
+
+        onDidChange = vscode.workspace.onDidChangeTextDocument((event) => {
+            if (
+                event &&
+                event.document.languageId === 'php' &&
+                phpcs
+            ) {
+                if (event.contentChanges.length > 0) {
+                    const fileName = event.document.fileName;
+
+                    const timer = saveTimers.get(fileName);
+                    if (timer) {
+                        clearTimeout(timer);
+                    }
+
+                    saveTimers.set(fileName, setTimeout(() => {
+                        saveTimers.delete(fileName);
+                        logger.logMessage('Document is changed - starting diagnostic', 'INFO');
+                        phpcs.fixPHP();
+                    }, 1000));
+                }
+
+            }
+        });
+
+        context.subscriptions.push(onDidChange);
     } else {
         logger.logMessage('Sniffer path is not set - sniffer can not check the current file', 'INFO');
     }
@@ -385,33 +487,8 @@ async function activate(context) {
     });
 
     // context.subscriptions.push(onOpen);
-    context.subscriptions.push(onSave);
+
     context.subscriptions.push(onChangeConfig);
-
-    let changeTimers = new Map(); // Keyed by file name.
-
-    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
-        if (
-            event &&
-            event.document.languageId === 'php'
-        ) {
-            if (event.contentChanges.length > 0) {
-                const fileName = event.document.fileName;
-
-                const timer = changeTimers.get(fileName);
-                if (timer) {
-                    clearTimeout(timer);
-                }
-
-                changeTimers.set(fileName, setTimeout(() => {
-                    changeTimers.delete(fileName);
-                    logger.logMessage('Document is changed - starting diagnostic', 'INFO');
-                    phpcs.fixPHP();
-                }, 1000));
-            }
-
-        }
-    }));
 
     if (config('fileSizeOnHover')) {
         let decorator = await createDecoratorClass();
