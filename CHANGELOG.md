@@ -1,5 +1,8 @@
 # Change Log
 
+## 2.3.3
+- Bug fixes and removing phpcs fixer to run on save event.
+
 ## 2.3.2
 - Bug fixes and further code optimizations.
 

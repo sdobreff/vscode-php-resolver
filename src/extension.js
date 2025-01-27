@@ -19,7 +19,7 @@ let phpcs = null;
 let phpBeautyFormatter = null;
 let logger = new Logger;
 let onChangeActiveDocument = null;
-let onSave = null;
+// let onSave = null;
 let onDidChange = null;
 let clearErrorOutput = null;
 
@@ -122,28 +122,28 @@ async function updateConfig(context) {
             context.subscriptions.push(onChangeActiveDocument);
         }
 
-        if (null === onSave) {
-            onSave = await vscode.workspace.onDidSaveTextDocument((document) => {
-                if (document.languageId === 'php' && phpcs) {
+        // if (null === onSave) {
+        //     onSave = await vscode.workspace.onDidSaveTextDocument((document) => {
+        //         if (document.languageId === 'php' && phpcs) {
 
-                    const fileName = document.fileName;
+        //             const fileName = document.fileName;
 
-                    const timer = saveTimers.get(fileName);
-                    if (timer) {
-                        clearTimeout(timer);
-                    }
+        //             const timer = saveTimers.get(fileName);
+        //             if (timer) {
+        //                 clearTimeout(timer);
+        //             }
 
-                    saveTimers.set(fileName, setTimeout(() => {
-                        saveTimers.delete(fileName);
-                        logger.logMessage('Document is saved - starting code sniffer', 'INFO');
-                        phpcs.fixPHP();
-                    }, 1000));
+        //             saveTimers.set(fileName, setTimeout(() => {
+        //                 saveTimers.delete(fileName);
+        //                 logger.logMessage('Document is saved - starting code sniffer', 'INFO');
+        //                 phpcs.fixPHP();
+        //             }, 1000));
 
-                }
-            });
+        //         }
+        //     });
 
-            context.subscriptions.push(onSave);
-        }
+        //     context.subscriptions.push(onSave);
+        // }
 
         if (null === onDidChange) {
             onDidChange = await vscode.workspace.onDidChangeTextDocument((event) => {
@@ -214,11 +214,11 @@ async function updateConfig(context) {
             onChangeActiveDocument = null;
             logger.logMessage('Sniffer path is removed - Sniffer on change active document is unregistered', 'INFO');
         }
-        if (null !== onSave) {
-            onSave.dispose();
-            onSave = null;
-            logger.logMessage('Sniffer path is removed - Sniffer on save is unregistered', 'INFO');
-        }
+        // if (null !== onSave) {
+        //     onSave.dispose();
+        //     onSave = null;
+        //     logger.logMessage('Sniffer path is removed - Sniffer on save is unregistered', 'INFO');
+        // }
         if (null !== onDidChange) {
             onDidChange.dispose();
             onDidChange = null;
@@ -306,26 +306,26 @@ async function activate(context) {
 
         context.subscriptions.push(onChangeActiveDocument);
 
-        onSave = await vscode.workspace.onDidSaveTextDocument((document) => {
-            if (document.languageId === 'php' && phpcs) {
+        // onSave = await vscode.workspace.onDidSaveTextDocument((document) => {
+        //     if (document.languageId === 'php' && phpcs) {
 
-                const fileName = document.fileName;
+        //         const fileName = document.fileName;
 
-                const timer = saveTimers.get(fileName);
-                if (timer) {
-                    clearTimeout(timer);
-                }
+        //         const timer = saveTimers.get(fileName);
+        //         if (timer) {
+        //             clearTimeout(timer);
+        //         }
 
-                saveTimers.set(fileName, setTimeout(() => {
-                    saveTimers.delete(fileName);
-                    logger.logMessage('Document is saved - starting code sniffer', 'INFO');
-                    phpcs.fixPHP();
-                }, 1000));
+        //         saveTimers.set(fileName, setTimeout(() => {
+        //             saveTimers.delete(fileName);
+        //             logger.logMessage('Document is saved - starting code sniffer', 'INFO');
+        //             phpcs.fixPHP();
+        //         }, 1000));
 
-            }
-        });
+        //     }
+        // });
 
-        context.subscriptions.push(onSave);
+        // context.subscriptions.push(onSave);
 
         onDidChange = await vscode.workspace.onDidChangeTextDocument((event) => {
             if (
@@ -472,6 +472,7 @@ async function activate(context) {
     //         phpcs.fixPHP();
     //     }
     // });
+    // context.subscriptions.push(onOpen);
 
     //onSaveSniff = vscode.workspace.onDidSaveTextDocument((document) => {
     // logger.logMessage('Document is saved - loading file size', 'INFO');
@@ -481,14 +482,6 @@ async function activate(context) {
     //     phpcs.fixPHP();
     // }
     // });
-
-    var onChangeConfig = await vscode.workspace.onDidChangeConfiguration(() => {
-        updateConfig(context);
-    });
-
-    // context.subscriptions.push(onOpen);
-
-    context.subscriptions.push(onChangeConfig);
 
     if (config('fileSizeOnHover')) {
         let decorator = await createDecoratorClass();
@@ -534,6 +527,12 @@ async function activate(context) {
     // );
 
     // context.subscriptions.push(providerSnippet);
+
+    var onChangeConfig = await vscode.workspace.onDidChangeConfiguration(() => {
+        updateConfig(context);
+    });
+
+    context.subscriptions.push(onChangeConfig);
 }
 
 exports.activate = activate;
