@@ -3,6 +3,7 @@ let Tail = require('tail').Tail;
 const { config } = require('./Helpers');
 const notifier = require('node-notifier');
 let FileSize = require('./FileSize');
+let fs = require('fs');
 
 class ErrorLogViewer {
     file = '';
@@ -14,56 +15,61 @@ class ErrorLogViewer {
 
     watch() {
         let logFile = config('phpLogFile');
-        try {
-            let tail = new Tail(logFile);
-            tail.on('line', async (data) => {
-                this.outputChannel.appendLine(this.parseLog(data));
-                let truncateSize = config('errorLogTruncateSize');
-                if (truncateSize) {
-                    let fileSize = new FileSize;
-                    let fileSizeInBytes = await fileSize.getFileSizeInBytes(logFile);
-                    // 2 means megabytes - probably implementing some parser for that is a good idea.
-                    if (fileSize.getBytesType(fileSizeInBytes) >= 2 && fileSize.getHumanSize(fileSizeInBytes, fileSize.getBytesType(fileSizeInBytes)) > truncateSize) {
-                        fileSize.truncateFile(logFile);
-                    }
-                }
 
-                if (data.includes('PHP Fatal error')) {
-                    this.outputChannel.show();
-                    let that = this;
-                    const path = require('path');
-                    notifier.notify(
-                        {
-                            title: 'PHP error was triggered',
-                            message: 'Click here to go to the file generated the error',
-                            open: "vscode://file" + this.extractErrorFileAndLine(data),
-                            icon: path.join(__dirname, '/../images/icon.png'), // Absolute path (doesn't work on balloons)
-                            // sound: true, // Only Notification Center or Windows Toasters
-                            wait: true // Wait with callback, until user action is taken against notification, does not apply to Windows Toasters as they always wait or notify-send as it does not support the wait option
-                        },
-                        function (error, response, metadata) {
-                            if (response === 'activate') {
-
-                                vscode.workspace.openTextDocument(that.file)
-                                    .then(doc => {
-                                        vscode.window.showTextDocument(doc, { preview: true })
-                                            .then(x => {
-                                                let activeEditor = vscode.window.activeTextEditor;
-                                                let range = activeEditor.document.lineAt(that.line - 1).range;
-                                                activeEditor.selection = new vscode.Selection(range.start, range.end);
-                                                activeEditor.revealRange(range);
-                                            })
-                                    });
-                            }
+        if (fs.existsSync(logFile)) {
+            try {
+                let tail = new Tail(logFile);
+                tail.on('line', async (data) => {
+                    this.outputChannel.appendLine(this.parseLog(data));
+                    let truncateSize = config('errorLogTruncateSize');
+                    if (truncateSize) {
+                        let fileSize = new FileSize;
+                        let fileSizeInBytes = await fileSize.getFileSizeInBytes(logFile);
+                        // 2 means megabytes - probably implementing some parser for that is a good idea.
+                        if (fileSize.getBytesType(fileSizeInBytes) >= 2 && fileSize.getHumanSize(fileSizeInBytes, fileSize.getBytesType(fileSizeInBytes)) > truncateSize) {
+                            fileSize.truncateFile(logFile);
                         }
-                    );
-                }
-            });
-            tail.on("error", function (error) {
-                this.outputChannel.appendLine(error);
-            });
-        } catch (ex) {
-            this.outputChannel.appendLine(ex);
+                    }
+
+                    if (data.includes('PHP Fatal error')) {
+                        this.outputChannel.show();
+                        let that = this;
+                        const path = require('path');
+                        notifier.notify(
+                            {
+                                title: 'PHP error was triggered',
+                                message: 'Click here to go to the file generated the error',
+                                open: "vscode://file" + this.extractErrorFileAndLine(data),
+                                icon: path.join(__dirname, '/../images/icon.png'), // Absolute path (doesn't work on balloons)
+                                // sound: true, // Only Notification Center or Windows Toasters
+                                wait: true // Wait with callback, until user action is taken against notification, does not apply to Windows Toasters as they always wait or notify-send as it does not support the wait option
+                            },
+                            function (error, response, metadata) {
+                                if (response === 'activate') {
+
+                                    vscode.workspace.openTextDocument(that.file)
+                                        .then(doc => {
+                                            vscode.window.showTextDocument(doc, { preview: true })
+                                                .then(x => {
+                                                    let activeEditor = vscode.window.activeTextEditor;
+                                                    let range = activeEditor.document.lineAt(that.line - 1).range;
+                                                    activeEditor.selection = new vscode.Selection(range.start, range.end);
+                                                    activeEditor.revealRange(range);
+                                                })
+                                        });
+                                }
+                            }
+                        );
+                    }
+                });
+                tail.on("error", function (error) {
+                    this.outputChannel.appendLine(error);
+                });
+            } catch (ex) {
+                this.outputChannel.appendLine(ex);
+            }
+        } else {
+            this.outputChannel.appendLine('Error Log file not found');
         }
 
         // fs.open(logFile, 'r', (err, fd) => {

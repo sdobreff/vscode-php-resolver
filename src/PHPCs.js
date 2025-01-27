@@ -29,7 +29,6 @@ class PHPCs {
             return;
         }
 
-
         vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             cancellable: false
