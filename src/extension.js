@@ -7,12 +7,13 @@ let Logger = require('./Logger');
 let VersionNotifier = require('./VersionNotifier');
 let ErrorLogViewer = require('./ErrorLogViewer');
 // let FileSize = require('./FileSize');
-let { activeEditor, config } = require('./Helpers');
+let { activeEditor, config, EXTENSION_NAME } = require('./Helpers');
 let createDecoratorClass = require('./ExplorerDecorator');
 let codeActions = require("./CodeActions");
 
 let languageConfiguration = require('./PHPLanguageeConfiguration');
 let docBlockTags = require('./PHPDocBlockTags');
+let DocBuilder = require('./PHPBlockParser');
 
 let errorLogger = null;
 
@@ -516,13 +517,20 @@ async function activate(context) {
             provideCompletionItems(document, position) {
                 let a = [],
                     i;
+                if ((i = document.getWordRangeAtPosition(position, /\/\*\*/)) !== void 0) {
+                    let s = new DocBuilder(i, activeEditor()),
+                        c = new vscode.CompletionItem("/**", vscode.CompletionItemKind.Snippet);
+                    c.detail = EXTENSION_NAME, c.documentation = "Generate a PHP DocBlock from the code snippet below.";
+                    let g = document.getWordRangeAtPosition(position, /\/\*\* \*\//);
+                    return c.range = g, c.insertText = s.autoDocument(), a.push(c), a;
+                }
                 if ((i = document.getWordRangeAtPosition(position, /\@[a-z]*/)) === void 0) return a;
                 let l = document.getText(i);
                 return docBlockTags.filter(s => s.tag.match(l) !== null).forEach(s => {
                     let c = new vscode.CompletionItem(s.tag, vscode.CompletionItemKind.Snippet);
                     c.range = i, c.insertText = new vscode.SnippetString(s.snippet), a.push(c);
-                    c.detail = "PHP Resolver", c.documentation = "Generate a PHP Block Tag from the code snippet below.";
-                }), a
+                    c.detail = EXTENSION_NAME, c.documentation = "Generate a PHP Block Tag from the code snippet below.";
+                }), a;
                 // const linePrefix = document.lineAt(position).text.substr(0, position.character);
                 // if (!linePrefix.endsWith('/***')) {
                 //     return undefined;
