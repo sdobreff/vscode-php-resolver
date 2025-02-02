@@ -11,6 +11,9 @@ let { activeEditor, config } = require('./Helpers');
 let createDecoratorClass = require('./ExplorerDecorator');
 let codeActions = require("./CodeActions");
 
+let languageConfiguration = require('./PHPLanguageeConfiguration');
+let docBlockTags = require('./PHPDocBlockTags');
+
 let errorLogger = null;
 
 let phpbf = null;
@@ -507,26 +510,37 @@ async function activate(context) {
         providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
     }));
 
-    // const providerSnippet = vscode.languages.registerCompletionItemProvider(
-    //     'php',
-    //     {
-    //         provideCompletionItems(document, position) {
-    //             const linePrefix = document.lineAt(position).text.substr(0, position.character);
-    //             if (!linePrefix.endsWith('/***')) {
-    //                 return undefined;
-    //             }
+    const providerSnippet = vscode.languages.registerCompletionItemProvider(
+        'php',
+        {
+            provideCompletionItems(document, position) {
+                let a = [],
+                    i;
+                if ((i = document.getWordRangeAtPosition(position, /\@[a-z]*/)) === void 0) return a;
+                let l = document.getText(i);
+                return docBlockTags.filter(s => s.tag.match(l) !== null).forEach(s => {
+                    let c = new vscode.CompletionItem(s.tag, vscode.CompletionItemKind.Snippet);
+                    c.range = i, c.insertText = new vscode.SnippetString(s.snippet), a.push(c);
+                    c.detail = "PHP Resolver", c.documentation = "Generate a PHP Block Tag from the code snippet below.";
+                }), a
+                // const linePrefix = document.lineAt(position).text.substr(0, position.character);
+                // if (!linePrefix.endsWith('/***')) {
+                //     return undefined;
+                // }
 
-    //             const snippetCompletion = new vscode.CompletionItem('My Snippet');
-    //             snippetCompletion.insertText = new vscode.SnippetString('console.log(${1:value});');
-    //             snippetCompletion.documentation = new vscode.MarkdownString('Log to console');
+                // const snippetCompletion = new vscode.CompletionItem('My Snippet');
+                // snippetCompletion.insertText = new vscode.SnippetString('console.log(${1:value});');
+                // snippetCompletion.documentation = new vscode.MarkdownString('Log to console');
 
-    //             return [snippetCompletion];
-    //         }
-    //     },
-    //     '*' // triggered whenever a '.' is typed
-    // );
+                // return [snippetCompletion];
+            }
+        },
+        "*", "@"
+    );
 
-    // context.subscriptions.push(providerSnippet);
+    context.subscriptions.push(providerSnippet);
+
+    vscode.languages.setLanguageConfiguration('php', languageConfiguration);
 
     var onChangeConfig = await vscode.workspace.onDidChangeConfiguration(() => {
         updateConfig(context);
