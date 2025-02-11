@@ -12,10 +12,10 @@ class DocBlock {
         })
     }
     build(e = !1) {
-        let t = "",//o.instance.get("extra"),
-            n = "",//o.instance.get("gap"),
-            a = "",//o.instance.get("returnGap"),
-            l = "",//o.instance.get("alignParams") ? o.instance.get("alignReturn") : !1,
+        let t = "",//PHPStoredData.instance.get("extra"),
+            n = "",//PHPStoredData.instance.get("gap"),
+            a = "",//PHPStoredData.instance.get("returnGap"),
+            l = "",//PHPStoredData.instance.get("alignParams") ? PHPStoredData.instance.get("alignReturn") : !1,
             r = "",
             s = "",
             c = "",
@@ -30,17 +30,17 @@ class DocBlock {
                 f = u.name.replace("$", "\\$"),
                 z = this.getParamAlignmentSpaces(T, f, h);
             c += "@param " + (l ? this.indentCharacter : "") + "${###:" + h + "} " + z.prepend + f + z.append;
-            let I = o.instance.get("paramDescription");
+            let I = PHPStoredData.instance.get("paramDescription");
             I === !0 ? c += "${###}" : typeof I == "string" && (c += "${###:" + I + "}")
         })), this.var) {
             s = "@var ${###:" + this.var + "}";
-            let u = o.instance.get("varDescription");
+            let u = PHPStoredData.instance.get("varDescription");
             u === !0 ? s += " ${###}" : typeof u == "string" && (s += " ${###:" + u + "}")
         }
-        if (this.return && (this.return != "void" || o.instance.get("returnVoid"))) {
+        if (this.return && (this.return != "void" || PHPStoredData.instance.get("returnVoid"))) {
             let u = this.getReturnAlignmentSpaces(T);
             r = "@return ${###:" + this.return + "}" + u.append;
-            let h = o.instance.get("returnDescription");
+            let h = PHPStoredData.instance.get("returnDescription");
             h === !0 ? r += "${###}" : typeof h == "string" && (r += "${###:" + h + "}")
         }
         Array.isArray(t) && t.length > 0 && (g = t.join(`
@@ -57,7 +57,7 @@ class DocBlock {
             H = 0;
         return $ = $.replace(/###/gm, function () {
             return H++, H + ""
-        }), $ = $.replace(/^$/gm, " *"), $ = $.replace(/^(?!(\s\*|\/\*))/gm, " * $1"), /*o.instance.get("autoClosingBrackets") == */"never" ? $ = `
+        }), $ = $.replace(/^$/gm, " *"), $ = $.replace(/^(?!(\s\*|\/\*))/gm, " * $1"), /*PHPStoredData.instance.get("autoClosingBrackets") == */"never" ? $ = `
 ` + $ + `
  */` : $ = `/**
 ` + $ + `
@@ -82,8 +82,8 @@ class DocBlock {
             } : this._template
     }
     getMaxParamLength(e, t) {
-        let n = true,//o.instance.get("alignParams"),
-            a = !1,//n ? o.instance.get("alignReturn") : !1,
+        let n = true,//PHPStoredData.instance.get("alignParams"),
+            a = !1,//n ? PHPStoredData.instance.get("alignReturn") : !1,
             i = 0,
             l = 0;
         return e.length && n && e.forEach(r => {
@@ -91,15 +91,15 @@ class DocBlock {
             s.length > i && (i = s.length);
             let c = r.name.replace("$", "\\$");
             c.length > l && (l = c.length)
-        }), t && (t != "void" /*|| o.instance.get("returnVoid")*/) && a && t.length > i && (i = t.length),
+        }), t && (t != "void" /*|| PHPStoredData.instance.get("returnVoid")*/) && a && t.length > i && (i = t.length),
         {
             type: i,
             name: l
         }
     }
     getParamAlignmentSpaces(e, t, n) {
-        let a = true,//o.instance.get("alignParams"),
-            i = "",//o.instance.get("paramDescription"),
+        let a = true,//PHPStoredData.instance.get("alignParams"),
+            i = "",//PHPStoredData.instance.get("paramDescription"),
             l = "",
             r = "";
         return a && (l = Array(e.type - n.length).fill(this.indentCharacter).join(""), r = Array(1 + e.name - t.length).fill(this.indentCharacter).join("")),
@@ -109,8 +109,8 @@ class DocBlock {
         }
     }
     getReturnAlignmentSpaces(e) {
-        let n = true, //o.instance.get("alignParams") ? o.instance.get("alignReturn") : !1,
-            a = "",//o.instance.get("returnDescription"),
+        let n = true, //PHPStoredData.instance.get("alignParams") ? PHPStoredData.instance.get("alignReturn") : !1,
+            a = "",//PHPStoredData.instance.get("returnDescription"),
             i = "";
         return n && (i = Array(1 + e.type - this.return.length).fill(this.indentCharacter).join("") + Array(e.name).fill(this.indentCharacter).join("")),
         {
@@ -195,7 +195,90 @@ class BaseParser {
         return this.classHead
     }
 };
-
+class PHPStoredData {
+    constructor() {
+        this.isLive = !0
+    }
+    static get instance() {
+        return this._instance == null && (this._instance = new this), this._instance
+    }
+    set live(e) {
+        this.isLive = e
+    }
+    setFallback(e) {
+        this.data = e
+    }
+    override(e) {
+        this.data = B(B(
+            {}, this.data), e)
+    }
+    get(e) {
+        return this.isLive ? e === "autoClosingBrackets" ? vscode.workspace.getConfiguration("editor").get(e) : vscode.workspace.getConfiguration("php-docblocker").get(e) : this.data[e]
+    }
+};
+class PHPTypes {
+    static get instance() {
+        return this._instance || (this._instance = new this)
+    }
+    getResolvedTypeHints(e, t = null) {
+        let n = e.split(/([|&])/);
+        for (let a = 0; a < n.length; a += 2) {
+            if (n[a] === "") {
+                delete n[a], delete n[a + 1];
+                continue
+            }
+            n[a] = this.getFullyQualifiedType(n[a], t), n[a] = this.getFormattedTypeByName(n[a])
+        }
+        return n.join("")
+    }
+    getFullyQualifiedType(e, t) {
+        if (!t || !PHPStoredData.instance.get("qualifyClassNames")) return e;
+        let n = /[\s;]?use\s+(?:(const|function)\s*)?([\s\S]*?)\s*;/gmi,
+            a;
+        for (; a = n.exec(t);) {
+            let i = a[1],
+                l = a[2];
+            if (i) continue;
+            let r = this.getClassesFromUse(l)[e];
+            if (r !== void 0) return r.charAt(0) != "\\" && (r = "\\" + r), r
+        }
+        return e
+    }
+    getClassesFromUse(e) {
+        let t, n;
+        if (e.indexOf("{") !== -1) {
+            let l = e.indexOf("{"),
+                r = (e + "}").indexOf("}");
+            t = e.substring(0, l).trim(), n = e.substring(l + 1, r).split(",")
+        }
+        else t = "", n = e.split(",");
+        var i = {};
+        for (let l = 0; l < n.length; l++) {
+            let r, s = n[l].trim();
+            s !== "" && (s = t + s, [s, r] = s.split(/\s+as\s+/gmi, 2), (r === void 0 || r === "") && (r = s.substring(s.lastIndexOf("\\") + 1)), i[r] = s)
+        }
+        return i
+    }
+    getFormattedTypeByName(e) {
+        switch (e) {
+            case "bool":
+            case "boolean":
+                return PHPStoredData.instance.get("useShortNames") ? "bool" : "boolean";
+            case "int":
+            case "integer":
+                return PHPStoredData.instance.get("useShortNames") ? "int" : "integer";
+            default:
+                return e
+        }
+    }
+    getTypeFromValue(e) {
+        let t;
+        return e.match(/^\s*(false|true)\s*$/i) !== null || e.match(/^\s*\!/i) !== null ? this.getFormattedTypeByName("bool") : e.match(/^\s*([\d-]+)\s*$/) !== null ? this.getFormattedTypeByName("int") : e.match(/^\s*([\d.-]+)\s*$/) !== null ? "float" : e.match(/^\s*(["'])/) !== null || e.match(/^\s*<<</) !== null ? "string" : e.match(/^\s*(array\(|\[)/) !== null ? "array" : this.getDefaultType()
+    }
+    getDefaultType() {
+        return PHPStoredData.instance.get("defaultType")
+    }
+};
 class PHPClass extends BaseParser {
     constructor() {
         super(...arguments);
@@ -207,12 +290,34 @@ class PHPClass extends BaseParser {
         return t.template = 'k', t
     }
 };
-
+class PHPVar extends BaseParser {
+    constructor() {
+        super(...arguments);
+        this.pattern = /^\s*(static)?\s*(protected|private|public)\s+(static\s*)?(?:readonly\s*)?(\??\\?[a-zA-Z_\x7f-\xff][a-zA-Z0-9|_\x7f-\xff\\]+)?\s*(\$[A-Za-z0-9_]+)\s*\=?\s*([^;]*)/m
+    }
+    parse() {
+        let e = this.match(),
+            t = new DocBlock("Undocumented variable");
+            // m = new PHPTypes();
+        /*if (t.template = PHPStoredData.instance.get("propertyTemplate"), e[4]) {
+            let n = e[4].match(/(\?)?(.*)/m),
+                a;
+            PHPStoredData.instance.get("qualifyClassNames") && (a = this.getClassHead());
+            let i = m.instance.getResolvedTypeHints(n[2], a);
+            i = m.instance.getFormattedTypeByName(i), n[1] === "?" && (i += "|null"), t.var = i
+        }
+        else */e[6] ? t.var = PHPTypes.instance.getTypeFromValue(e[6]) : t.var = PHPTypes.instance.getDefaultType();
+        return t
+    }
+};
 class DocBuilder {
     constructor(position, editor) {
         this.targetPosition = position.start, this.editor = editor
     }
     autoDocument() {
+        let phpVar = new PHPVar(this.targetPosition, this.editor);
+        if (phpVar.test()) return phpVar.parse().build();
+
         let phpClass = new PHPClass(this.targetPosition, this.editor);
         return phpClass.test() ? phpClass.parse().build() : new DocBlock().build(!0)
     }
