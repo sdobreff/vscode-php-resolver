@@ -57,7 +57,7 @@ class DocBlock {
             H = 0;
         return $ = $.replace(/###/gm, function () {
             return H++, H + ""
-        }), $ = $.replace(/^$/gm, " *"), $ = $.replace(/^(?!(\s\*|\/\*))/gm, " * $1"), /*PHPStoredData.instance.get("autoClosingBrackets") == */"never" ? $ = `
+        }), $ = $.replace(/^$/gm, " *"), $ = $.replace(/^(?!(\s\*|\/\*))/gm, " * $1"), PHPStoredData.instance.get("autoClosingBrackets") == "never" ? $ = `
 ` + $ + `
  */` : $ = `/**
 ` + $ + `
