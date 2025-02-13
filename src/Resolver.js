@@ -708,6 +708,7 @@ class Resolver {
 
     getDeclarations(pickedClass = null) {
         let useStatements = [];
+        let noUseStatement = false;
         let declarationLines = {
             PHPTag: 0,
             namespace: null,
@@ -730,7 +731,7 @@ class Resolver {
 
             // break if all declarations were found.
             if (declarationLines.PHPTag && declarationLines.namespace &&
-                declarationLines.useStatement && declarationLines.class && declarationLines.strictTypes) {
+                (declarationLines.useStatement || noUseStatement) && declarationLines.class && declarationLines.strictTypes) {
                 break;
             }
 
@@ -783,6 +784,9 @@ class Resolver {
                     multilineUseStatement = true;
                 }
             } else if (className = this.regexClassnames.exec(text)) {
+                declarationLines.namespace = (declarationLines.namespace) ?? declarationLines.PHPTag;
+                declarationLines.strictTypes = (declarationLines.strictTypes) ?? declarationLines.PHPTag;
+                noUseStatement = (0 === useStatements.length) ?? true;
                 declarationLines.class = line + 1;
                 this.currentClass = className[2];
             }
