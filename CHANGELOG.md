@@ -1,5 +1,8 @@
 # Change Log
 
+## 2.3.4
+- Bug fix where traits are used in the class files.
+
 ## 2.3.3
 - Bug fixes and removing phpcs fixer to run on save event.
 
