@@ -1,5 +1,10 @@
 let vscode = require('vscode');
 
+var S = class {
+    constructor(e, t) {
+        this.type = e, this.name = t
+    }
+};
 class DocBlock {
     constructor(e = "") {
         this.params = [];
@@ -279,6 +284,49 @@ class PHPTypes {
         return PHPStoredData.instance.get("defaultType")
     }
 };
+class PHPMethod extends BaseParser {
+    constructor() {
+        super(...arguments);
+        this.pattern = /^\s*((.*)(protected|private|public))?(.*)?\s*function\s+&?([a-z0-9_]+)\s*\(([^{;]*)/im
+    }
+    parse() {
+        let e = this.match(),
+            t = new DocBlock("Undocumented function");
+        t.template = PHPStoredData.instance.get("functionTemplate");
+        let n = this.getEnclosed(e[6], "(", ")"),
+            a;
+        if (n != "") {
+            let r = this.getSplitWithoutEnclosed(n);
+            PHPStoredData.instance.get("qualifyClassNames") && (a = this.getClassHead());
+            for (let s = 0; s < r.length; s++) {
+                let g = r[s].match(/^\s*(?:(?:public|protected|private)\s+)?(?:readonly\s+)?(\?)?\s*([A-Za-z0-9_\\][A-Za-z0-9_\\|&]+)?\s*\&?((?:[.]{3})?\$[A-Za-z0-9_]+)\s*\=?\s*(.*)\s*/im);
+                var i = PHPTypes.instance.getDefaultType();
+                g[2] != null && (i = PHPTypes.instance.getResolvedTypeHints(g[2], a)), g[2] != null && g[1] === "?" || g[2] != null && g[4] != null && g[2] != "mixed" && g[4] == "null" ? i += "|null" : g[4] != null && g[4] != "" && g[2] != "mixed" && (i = PHPTypes.instance.getFormattedTypeByName(PHPTypes.instance.getTypeFromValue(g[4]))), t.params.push(new S(i, g[3]))
+            }
+        }
+        let l = this.signature.match(/.*\)\s*\:\s*(\?)?\s*([a-zA-Z_|0-9\\]+)\s*$/m);
+        return l != null ? (l[2] = PHPTypes.instance.getResolvedTypeHints(l[2], this.getClassHead()), t.return = l[1] === "?" ? PHPTypes.instance.getFormattedTypeByName(l[2]) + "|null" : PHPTypes.instance.getFormattedTypeByName(l[2])) : t.return = this.getReturnFromName(e[5]), t
+    }
+    getReturnFromName(e) {
+        if (/^(is|has|can|should)(?:[A-Z0-9_]|$)/.test(e)) return PHPTypes.instance.getFormattedTypeByName("bool");
+        switch (e) {
+            case "__construct":
+            case "__destruct":
+            case "__set":
+            case "__unset":
+            case "__wakeup":
+                return null;
+            case "__isset":
+                return PHPTypes.instance.getFormattedTypeByName("bool");
+            case "__sleep":
+            case "__debugInfo":
+                return "array";
+            case "__toString":
+                return "string"
+        }
+        return "void"
+    }
+};
 class PHPClass extends BaseParser {
     constructor() {
         super(...arguments);
@@ -303,8 +351,8 @@ class PHPVar extends BaseParser {
             let n = e[4].match(/(\?)?(.*)/m),
                 a;
             PHPStoredData.instance.get("qualifyClassNames") && (a = this.getClassHead());
-            let i = m.instance.getResolvedTypeHints(n[2], a);
-            i = m.instance.getFormattedTypeByName(i), n[1] === "?" && (i += "|null"), t.var = i
+            let i = PHPTypes.instance.getResolvedTypeHints(n[2], a);
+            i = PHPTypes.instance.getFormattedTypeByName(i), n[1] === "?" && (i += "|null"), t.var = i
         }
         else */e[6] ? t.var = PHPTypes.instance.getTypeFromValue(e[6]) : t.var = PHPTypes.instance.getDefaultType();
         return t
@@ -315,6 +363,10 @@ class DocBuilder {
         this.targetPosition = position.start, this.editor = editor
     }
     autoDocument() {
+
+        let phpMethod = new PHPMethod(this.targetPosition, this.editor);
+        if (phpMethod.test()) return phpMethod.parse().build();
+
         let phpVar = new PHPVar(this.targetPosition, this.editor);
         if (phpVar.test()) return phpVar.parse().build();
 
