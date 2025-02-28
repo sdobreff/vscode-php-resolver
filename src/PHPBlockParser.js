@@ -50,23 +50,32 @@ class DocBlock {
         }
         Array.isArray(t) && t.length > 0 && (g = t.join(`
 `));
-        let P = [];
+        let parsedParts = [];
         for (let u in this.template) {
             let h = this.template[u],
                 f;
-            u == "message" && b ? (f = b, n && (h.gapAfter = !0)) : u == "var" && s ? f = s : u == "return" && r ? (f = r, a && (h.gapBefore = !0)) : u == "param" && c ? f = c : u == "extra" && g ? f = g : h.content !== void 0 && (f = h.content), f && h.gapBefore && P[P.length - 1] != "" && P.push(""), f && P.push(f), f && h.gapAfter && P.push("")
+            u == "message" && b ? (f = b, n && (h.gapAfter = !0)) :
+                u == "var" && s ? f = s :
+                    u == "return" && r ? (f = r, a && (h.gapBefore = !0)) :
+                        u == "param" && c ? f = c :
+                            u == "extra" && g ? f = g :
+                                h.content !== void 0 && (f = h.content), f && h.gapBefore && parsedParts[parsedParts.length - 1] != "" && parsedParts.push(""), f && parsedParts.push(f), f && h.gapAfter && parsedParts.push("")
         }
-        P[P.length - 1] == "" && P.pop();
-        let $ = P.join(`
-`),
-            H = 0;
-        return $ = $.replace(/###/gm, function () {
-            return H++, H + ""
-        }), $ = $.replace(/^$/gm, " *"), $ = $.replace(/^(?!(\s\*|\/\*))/gm, " * $1"), PHPStoredData.instance.get("autoClosingBrackets") == "never" ? $ = `
-` + $ + `
- */` : $ = `/**
-` + $ + `
- */`, new vscode.SnippetString($)
+        parsedParts[parsedParts.length - 1] == "" && parsedParts.pop();
+        let snippetBuildString = parsedParts.join(`
+`);
+        let interpolateIndex = 0;
+        snippetBuildString = snippetBuildString.replace(/###/gm, function () {
+            return interpolateIndex++, interpolateIndex + ""
+        });
+        snippetBuildString = snippetBuildString.replace(/^$/gm, " *");
+        snippetBuildString = snippetBuildString.replace(/^(?!(\s\*|\/\*))/gm, " * $1");
+        PHPStoredData.instance.get("autoClosingBrackets") == "never" ? snippetBuildString = `
+` + snippetBuildString + `
+ */` : snippetBuildString = `/**
+` + snippetBuildString + `
+ */`;
+        return new vscode.SnippetString(snippetBuildString)
     }
     set template(e) {
         this._template = e
@@ -333,9 +342,20 @@ class PHPClass extends BaseParser {
         this.pattern = /^\s*(abstract|final)?\s*(class|trait|interface)\s+([a-z0-9_]+)\s*/i
     }
     parse() {
-        let e = this.match(),
-            t = new DocBlock("Undocumented " + e[2]);
-        return t.template = 'k', t
+        let parts = this.match(),
+            template = new DocBlock("Undocumented " + parts[2]);
+        return template.template = this.template, template;
+    }
+    get template() {
+        return this._template == null ?
+            {
+                message:
+                {
+                    gapAfter: true
+                },
+                extra:
+                    {}
+            } : this._template
     }
 };
 class PHPVar extends BaseParser {
@@ -371,7 +391,9 @@ class DocBuilder {
         if (phpVar.test()) return phpVar.parse().build();
 
         let phpClass = new PHPClass(this.targetPosition, this.editor);
-        return phpClass.test() ? phpClass.parse().build() : new DocBlock().build(!0)
+        return phpClass.test() ?
+            phpClass.parse().build() :
+            new DocBlock().build(!0)
     }
 };
 
