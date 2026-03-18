@@ -42,7 +42,7 @@ If there is a class which is part of the same namespace as the current one, it w
 
 ## Linter Installation
 
-Before using this plugin, you must ensure that `phpcs` is installed on your system. The preferred method is using [composer](https://getcomposer.org/) for both system-wide and project-wide installations. Another alternative is to install **phpcs** and **phpcbf** is to follow the instructions provided here: [PHP_CodeSniffer](https://github.com/squizlabs/PHP_CodeSniffer)
+Before using this plugin, you must ensure that `phpcs` is installed on your system. The preferred method is using [composer](https://getcomposer.org/) for both system-wide and project-wide installations. Another alternative is to install **phpcs** and **phpcbf** is to follow the instructions provided here: [PHP_CodeSniffer](https://github.com/PHPCSStandards/PHP_CodeSniffer)
 
 ### PHP sniffer
 
@@ -79,7 +79,7 @@ Using the setting `phpResolver.phpStandards`, you have to provide the codding st
 }
 ```
 
-If your project is using custom standards as it is described here: [PHP_CodeSniffer - Using a Default Configuration File](https://github.com/squizlabs/PHP_CodeSniffer/wiki/Advanced-Usage#using-a-default-configuration-file), then you need to provide the full path to these configurations.
+If your project is using custom standards as it is described here: [PHP_CodeSniffer - Using a Default Configuration File](https://github.com/PHPCSStandards/PHP_CodeSniffer/wiki/Advanced-Usage#using-a-default-configuration-file), then you need to provide the full path to these configurations.
 *Example:*
 
 ```json
