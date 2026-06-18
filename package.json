@@ -41,11 +41,19 @@
 	},
 	"activationEvents": [
 		"onLanguage:php",
+		"onLanguage:hack",
 		"onCommand:phpResolver.import",
 		"onCommand:phpResolver.importAll",
 		"onCommand:phpResolver.expand",
 		"onCommand:phpResolver.sort",
 		"onCommand:phpResolver.generateNamespace",
+		"onCommand:phpResolver.createZip",
+		"onCommand:phpResolver.openZipContents",
+		"onCommand:phpResolver.refreshZipContents",
+		"onCommand:phpResolver.extractZip",
+		"onCommand:phpResolver.docblockTrigger",
+		"onCommand:phpResolver.clearDefinitionCache",
+		"onCommand:phpResolver.showDefinitionTrace",
 		"onCommand:phpResolver.beautify",
 		"onCommand:phpResolver.fixer",
 		"onCommand:phpResolver.clearErrorChannel"
@@ -95,6 +103,39 @@
 					"command": "phpResolver.clearErrorChannel",
 					"group": "0_php_resolver@10"
 				}
+			],
+			"explorer/context": [
+				{
+					"when": "resourceScheme == file",
+					"command": "phpResolver.createZip",
+					"group": "0_php_resolver@20"
+				},
+				{
+					"when": "resourceScheme == file && resourceExtname == .zip",
+					"command": "phpResolver.openZipContents",
+					"group": "0_php_resolver@20"
+				},
+				{
+					"when": "resourceScheme == file && resourceExtname == .zip",
+					"command": "phpResolver.extractZip",
+					"group": "0_php_resolver@21"
+				}
+			],
+			"view/title": [
+				{
+					"command": "phpResolver.refreshZipContents",
+					"when": "view == phpResolverZipContents",
+					"group": "navigation"
+				}
+			]
+		},
+		"views": {
+			"explorer": [
+				{
+					"id": "phpResolverZipContents",
+					"name": "ZIP Contents",
+					"icon": "images/icon.png"
+				}
 			]
 		},
 		"configuration": {
@@ -105,6 +146,21 @@
 					"type": "string",
 					"default": "**/node_modules/**",
 					"description": "Exclude glob pattern while finding files"
+				},
+				"phpResolver.definitionIncludeVendor": {
+					"type": "boolean",
+					"default": true,
+					"description": "Include vendor directory when building PHP definition index"
+				},
+				"phpResolver.definitionUsePersistentCache": {
+					"type": "boolean",
+					"default": true,
+					"description": "Persist PHP definition index cache across restarts for faster startup"
+				},
+				"phpResolver.definitionTrace": {
+					"type": "boolean",
+					"default": true,
+					"description": "Write Go to Definition resolution trace to PHP Resolver output channel"
 				},
 				"phpResolver.showMessageOnStatusBar": {
 					"type": "boolean",
@@ -340,6 +396,98 @@
 					"type": "integer",
 					"default": 3000,
 					"description": "Set the file lines limit above which the PHP CS should not run checks"
+				},
+				"phpResolver.gap": {
+					"type": "boolean",
+					"default": true,
+					"description": "If there should be a gap between the description and tags"
+				},
+				"phpResolver.returnGap": {
+					"type": "boolean",
+					"default": false,
+					"description": "If there should be a gap between params and return"
+				},
+				"phpResolver.defaultType": {
+					"type": "string",
+					"default": "[type]",
+					"description": "Default type to use if a type wasn't able to be detected"
+				},
+				"phpResolver.returnVoid": {
+					"type": "boolean",
+					"default": true,
+					"description": "Should we return void if there is no detectable return type?"
+				},
+				"phpResolver.extra": {
+					"type": "array",
+					"default": [],
+					"description": "Extra tags you wish to include in every DocBlock"
+				},
+				"phpResolver.useShortNames": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether you want to use int instead of integer and bool instead of boolean."
+				},
+				"phpResolver.qualifyClassNames": {
+					"type": "boolean",
+					"default": false,
+					"description": "Fully qualifies any data types used in param and returns by reading namespace use statements."
+				},
+				"phpResolver.alignParams": {
+					"type": "boolean",
+					"default": false,
+					"description": "Vertically aligns param types and names with additional spaces."
+				},
+				"phpResolver.alignReturn": {
+					"type": "boolean",
+					"default": false,
+					"description": "Vertically aligns return with above param statements."
+				},
+				"phpResolver.varDescription": {
+					"type": [
+						"string",
+						"boolean"
+					],
+					"default": false,
+					"description": "Include a description placeholder for @var tags"
+				},
+				"phpResolver.paramDescription": {
+					"type": [
+						"string",
+						"boolean"
+					],
+					"default": false,
+					"description": "Include a description placeholder for @param tags"
+				},
+				"phpResolver.returnDescription": {
+					"type": [
+						"string",
+						"boolean"
+					],
+					"default": false,
+					"description": "Include a description placeholder for @return tags"
+				},
+				"phpResolver.functionTemplate": {
+					"type": "object",
+					"default": null,
+					"description": "Specify the default template for functions."
+				},
+				"phpResolver.propertyTemplate": {
+					"type": "object",
+					"default": null,
+					"description": "Specify the default template for class variables."
+				},
+				"phpResolver.classTemplate": {
+					"type": "object",
+					"default": null,
+					"description": "Specify the default template for classes."
+				},
+				"phpResolver.author": {
+					"type": "object",
+					"default": {
+						"name": "Name",
+						"email": "email@email.com"
+					},
+					"description": "Default author tag"
 				}
 			}
 		},
@@ -363,6 +511,39 @@
 			{
 				"title": "Generate namespace for this file",
 				"command": "phpResolver.generateNamespace"
+			},
+			{
+				"title": "Create ZIP Archive",
+				"command": "phpResolver.createZip"
+			},
+			{
+				"title": "Open ZIP Contents",
+				"command": "phpResolver.openZipContents"
+			},
+			{
+				"title": "Refresh ZIP Contents",
+				"command": "phpResolver.refreshZipContents",
+				"icon": "$(refresh)"
+			},
+			{
+				"title": "Extract ZIP Archive",
+				"command": "phpResolver.extractZip"
+			},
+			{
+				"title": "Insert PHP Docblock",
+				"command": "phpResolver.docblockTrigger"
+			},
+			{
+				"title": "Sync Parameter Names (Docblock ↔ Function)",
+				"command": "phpResolver.syncParams"
+			},
+			{
+				"title": "Clear Definition Cache",
+				"command": "phpResolver.clearDefinitionCache"
+			},
+			{
+				"title": "Show Definition Trace",
+				"command": "phpResolver.showDefinitionTrace"
 			},
 			{
 				"title": "Beautify code (phpcbf)",
@@ -401,6 +582,16 @@
 			{
 				"command": "phpResolver.generateNamespace",
 				"key": "ctrl+alt+g",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "phpResolver.docblockTrigger",
+				"key": "ctrl+alt+d",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "phpResolver.syncParams",
+				"key": "ctrl+alt+p",
 				"when": "editorTextFocus"
 			},
 			{
@@ -451,6 +642,7 @@
 		"url": "https://github.com/sdobreff/vscode-php-resolver/issues"
 	},
 	"dependencies": {
+		"adm-zip": "^0.5.17",
 		"command-exists": "^1.2.9",
 		"cross-spawn": "^7.0.3",
 		"node-natural-sort": "^0.8.6",

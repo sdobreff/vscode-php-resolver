@@ -17,6 +17,202 @@ It's purpose is to try to provide all-in-one solution for resolving problems wit
 - **PHP Coding standards fixer** - support `php-cs-fixer` to resolve PHP problems using different set of rules.
 - **PHP error log file monitor** - monitoring changes in the given PHP error log file, you can jump directly to the file and line from which the error comes from. On Fatal Errors, automatically switch Output view to the error log in order to grab your attention, OS notification is also fired in case you are alway of the VSCode window.
 - Extension adds **file size info** in the status bar, which gives you quick information about the size of the current file.
+- **DocBlock Generator** (PHP & Hack) - Automatically generates PHP/Hack docblocks with intelligent type detection, parameter documentation, and customizable templates.
+- **Parameter Name Synchronization** - Keep your function parameter names and docblock parameter documentation in sync with bidirectional updates.
+- **ZIP Archive Tools** - Create ZIP archives from files or folders and extract ZIP archives directly from VS Code.
+- **Go to Definition** - Fast workspace-wide PHP symbol indexing (classes, functions, methods) with optional vendor support, persistent cache, and resolution tracing.
+
+
+## PHP DocBlock Generator
+
+The extension includes a powerful DocBlock generator for PHP and Hack files with the following features:
+
+- **Auto-generation**: Press `Ctrl+Alt+D` to generate a docblock for the function/method/class below the cursor
+- **Smart Type Detection**: Automatically infers parameter and return types from code
+- **Tag Completion**: Start typing `@` in a docblock and get intelligent tag suggestions with snippets
+- **Customizable Templates**: Configure default docblock formats via settings (`phpResolver.functionTemplate`, `phpResolver.propertyTemplate`, `phpResolver.classTemplate`)
+- **Type Formatting**: Control type display with `phpResolver.useShortNames` and `phpResolver.qualifyClassNames` settings
+- **Parameter Alignment**: Optionally align parameter documentation with `phpResolver.alignParams` setting
+- **Custom Tags**: Add extra tags to all docblocks with `phpResolver.extra` setting
+- **Author Information**: Automatically include author name and email from `phpResolver.author` setting
+
+### Keybindings
+
+- `Ctrl+Alt+D` - Insert PHP DocBlock
+- `@` completion - Tag completion within docblocks
+
+### Configuration Example
+
+```json
+{
+    "phpResolver.gap": true,
+    "phpResolver.returnGap": false,
+    "phpResolver.defaultType": "[type]",
+    "phpResolver.useShortNames": true,
+    "phpResolver.alignParams": true,
+    "phpResolver.author": {
+        "name": "Your Name",
+        "email": "your.email@example.com"
+    },
+    "phpResolver.extra": ["@license MIT"],
+    "phpResolver.functionTemplate": {
+        "message": "${summary}",
+        "gap": true,
+        "params": true,
+        "return": true
+    }
+}
+```
+
+## Parameter Name Synchronization
+
+When you modify function parameter names, you may want to keep your docblock in sync. This feature helps you maintain consistency between function signatures and their documentation.
+
+### How It Works
+
+The extension detects mismatches between docblock `@param` names and function parameter names for the nearest attached docblock-function pair.
+
+Sync options:
+
+1. **Sync Docblock → Function**: rename function params to match docblock names
+2. **Sync Function → Docblock**: rename docblock `@param` names to match function names
+
+Note: parameter sync is currently command-driven (`Ctrl+Alt+P`), not automatic lightbulb quick-fix.
+
+### Usage: Keyboard Shortcut
+
+1. Place your cursor inside the target function or its docblock
+2. Press `Ctrl+Alt+P` or run the `phpResolver.syncParams` command
+3. The extension matches the nearest docblock-function pair and shows sync options
+4. Choose your sync direction from the quick-pick menu
+
+### Examples
+
+**Before Sync** (Mismatch detected - lightbulb appears):
+```php
+/**
+ * Processes user data
+ * @param $userData The user information
+ * @param $options Configuration options
+ */
+public function processUser($userInfo, $config) {
+    // ...
+}
+```
+
+**After Docblock → Function Sync** (via lightbulb or Ctrl+Alt+P):
+```php
+/**
+ * Processes user data
+ * @param $userData The user information
+ * @param $options Configuration options
+ */
+public function processUser($userData, $options) {
+    // ...
+}
+```
+
+Or **After Function → Docblock Sync**:
+```php
+/**
+ * Processes user data
+ * @param $userInfo The user information
+ * @param $config Configuration options
+ */
+public function processUser($userInfo, $config) {
+    // ...
+}
+```
+
+### Keyboard Shortcuts
+- `Ctrl+Alt+P` - Open sync dialog (manual mode with quick-pick menu)
+- `Ctrl+Alt+D` - Insert/generate docblock
+
+## ZIP Archive Tools
+
+The extension can create ZIP files and extract ZIP archives.
+
+### Browse ZIP Contents (Tree View)
+
+Use command: `Open ZIP Contents` (`phpResolver.openZipContents`)
+
+- Click a `.zip` file in Explorer and run **Open ZIP Contents** from context menu.
+- When a `.zip` file is opened in the editor, the extension also auto-loads it into the **ZIP Contents** view.
+- The tree displays folder structure with file metadata (size and modified date).
+- Click any file in the ZIP tree to open it in a temporary preview file.
+- Use the refresh button on the **ZIP Contents** view title to reload from disk.
+
+### Create ZIP Archive
+
+Use command: `Create ZIP Archive` (`phpResolver.createZip`)
+
+- Run it from Explorer context menu on a file or folder, or from Command Palette.
+- If no Explorer item is selected, the active editor file is used.
+- You can choose the destination `.zip` filename and location.
+
+### Extract ZIP Archive
+
+Use command: `Extract ZIP Archive` (`phpResolver.extractZip`)
+
+- Run it from Explorer context menu on a `.zip` file, or from Command Palette.
+- You can extract to:
+    - a default new folder next to the archive
+    - or a custom destination folder
+
+## Go to Definition
+
+The extension provides built-in Go to Definition for PHP/Hack without requiring Intelephense.
+
+### What is indexed
+
+- Classes, interfaces, traits
+- Functions
+- Methods
+- Namespace + use/import aliases
+
+### Performance model
+
+- Incremental indexing (only changed files are reparsed)
+- Optional persistent cache on disk for faster startup
+- Optional vendor indexing for framework/library symbols
+
+### Settings
+
+- `phpResolver.definitionIncludeVendor` (default: `true`)
+    - Include `vendor` in definition indexing.
+- `phpResolver.definitionUsePersistentCache` (default: `true`)
+    - Persist index cache between sessions.
+- `phpResolver.definitionTrace` (default: `true`)
+    - Write definition resolution details to output channel.
+
+### Commands
+
+- `Clear Definition Cache` (`phpResolver.clearDefinitionCache`)
+    - Clears index cache and rebuilds from workspace files.
+- `Show Definition Trace` (`phpResolver.showDefinitionTrace`)
+    - Opens output channel with resolver trace lines.
+
+### Trace output meaning
+
+Trace entries include token, location, and match strategy, for example:
+
+- `resolved-by=function`
+- `resolved-by=class-token`
+- `resolved-by=methodKey`
+- `no-match`
+
+This is useful to confirm a jump result comes from PHP Resolver and not another extension.
+
+### Troubleshooting wrong function targets
+
+If a function call (for example `add_action(...)`) resolves to an unrelated class/method file:
+
+1. Run `Clear Definition Cache`.
+2. Reload VS Code window (`Developer: Reload Window`).
+3. Open `Show Definition Trace` and run Go to Definition again.
+4. For function calls, ensure trace resolves with `resolved-by=function`.
+
+If you still see incorrect results, temporarily disable other PHP language extensions and retry to isolate providers.
 
 ## Namespace resolving
 
