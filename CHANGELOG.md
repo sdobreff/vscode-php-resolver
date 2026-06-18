@@ -14,6 +14,7 @@
 - **Namespace Completion** — autocomplete inside `use` statements.
 - **PHPDoc Inheritance** — show inherited documentation on hover.
 - **Unused Import Detection** — real-time unused `use` diagnostics with quick-fix removal.
+- **Generate ZIP / Extract ZIP** — right click to generate and extract zip files. Zip content preview and open file without extracting.
 
 ### Performance Optimizations
 - Reverse token index (`tokenToFiles`) for O(1) symbol reference lookups.
