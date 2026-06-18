@@ -163,6 +163,14 @@ Use command: `Extract ZIP Archive` (`phpResolver.extractZip`)
 
 The extension provides built-in Go to Definition for PHP/Hack without requiring Intelephense.
 
+## Phase 1 Navigation Modules
+
+In addition to Go to Definition, Phase 1 includes:
+
+- Find References
+- Workspace Symbols
+- Hover details (symbol kind, file, declaration line)
+
 ### What is indexed
 
 - Classes, interfaces, traits
@@ -178,6 +186,24 @@ The extension provides built-in Go to Definition for PHP/Hack without requiring 
 
 ### Settings
 
+- `phpResolver.enableDefinitionModule` (default: `true`)
+    - Enable/disable PHP Resolver Go to Definition provider (requires window reload).
+- `phpResolver.enableReferencesModule` (default: `true`)
+    - Enable/disable Find References provider (requires window reload).
+- `phpResolver.enableWorkspaceSymbolsModule` (default: `true`)
+    - Enable/disable Workspace Symbols provider (requires window reload).
+- `phpResolver.enableHoverModule` (default: `true`)
+    - Enable/disable Hover provider (requires window reload).
+- `phpResolver.enableRenameModule` (default: `true`)
+    - Enable/disable safe Rename Symbol provider (class/function scope, requires window reload).
+- `phpResolver.enableImplementationModule` (default: `true`)
+    - Enable/disable Go to Implementation provider (class/method targets, requires window reload).
+- `phpResolver.enableMissingUseModule` (default: `true`)
+    - Enable/disable Auto Import / Fix Missing Use code actions module (requires window reload).
+- `phpResolver.definitionSingleResult` (default: `true`)
+    - Return only the top-ranked definition so Peek/hover definition lists stay deterministic.
+- `phpResolver.definitionDeprioritizeNoopFiles` (default: `true`)
+    - De-prioritize noop-like files (for example WordPress noop.php) during ranking.
 - `phpResolver.definitionIncludeVendor` (default: `true`)
     - Include `vendor` in definition indexing.
 - `phpResolver.definitionUsePersistentCache` (default: `true`)
@@ -185,12 +211,33 @@ The extension provides built-in Go to Definition for PHP/Hack without requiring 
 - `phpResolver.definitionTrace` (default: `true`)
     - Write definition resolution details to output channel.
 
+## Module Toggles
+
+You can disable specific modules if you want to use only part of the extension.
+
+- `phpResolver.enableDefinitionModule` (default: `true`)
+    - Turns the built-in Go to Definition engine on/off.
+- `phpResolver.enableDocblockModule` (default: `true`)
+    - Turns DocBlock snippet generation/completion and param sync commands on/off.
+- `phpResolver.enableRenameModule` (default: `true`)
+    - Turns safe Rename Symbol (class/function scope) on/off.
+- `phpResolver.enableImplementationModule` (default: `true`)
+    - Turns Go to Implementation on/off.
+- `phpResolver.enableMissingUseModule` (default: `true`)
+    - Turns Auto Import / Fix Missing Use diagnostics + quick fixes on/off.
+
+After changing any module toggle, run `Developer: Reload Window`.
+
 ### Commands
 
 - `Clear Definition Cache` (`phpResolver.clearDefinitionCache`)
     - Clears index cache and rebuilds from workspace files.
 - `Show Definition Trace` (`phpResolver.showDefinitionTrace`)
     - Opens output channel with resolver trace lines.
+- `Show References Trace` (`phpResolver.showReferencesTrace`)
+    - Opens output channel with Find References trace lines.
+- `Show Implementation Trace` (`phpResolver.showImplementationTrace`)
+    - Opens output channel with Go to Implementation trace lines.
 
 ### Trace output meaning
 
@@ -203,6 +250,27 @@ Trace entries include token, location, and match strategy, for example:
 
 This is useful to confirm a jump result comes from PHP Resolver and not another extension.
 
+## Phase 1 Tests
+
+Run the fixture-based tests locally:
+
+```bash
+npm run test:phase1
+```
+
+Current local tests validate:
+
+- Reference matching excludes common comments/strings
+- Symbol parsing for class/function/method declarations
+- Provider delegation for references/workspace symbols/hover/rename/implementation
+- **Phase 2 regression** (73 assertions):
+  - `isValidPhpIdentifier` edge-cases (digits, hyphens, spaces, null)
+  - `findClosestWordIndex` positioning accuracy
+  - Inheritance parsing: extends, implements, use-aliases, multi-level chains, traits
+  - `findDerivedClassRecords` graph traversal: direct, transitive, interface chains, unrelated exclusion
+  - Reference regex safety: matches inside strings/comments are excluded
+  - `extractClassParentsFromHeader` with namespace context and aliased imports
+
 ### Troubleshooting wrong function targets
 
 If a function call (for example `add_action(...)`) resolves to an unrelated class/method file:
@@ -213,6 +281,137 @@ If a function call (for example `add_action(...)`) resolves to an unrelated clas
 4. For function calls, ensure trace resolves with `resolved-by=function`.
 
 If you still see incorrect results, temporarily disable other PHP language extensions and retry to isolate providers.
+
+## Phase 2 Safe Refactoring
+
+### Rename Symbol (Safe Refactor)
+
+Safely rename PHP symbols (classes and functions) with workspace-wide reference tracking:
+
+- **F2 or right-click → Rename Symbol** - Refactors all references to the selected class or function
+- **Scope**: Classes and top-level functions only (methods excluded to prevent unintended refactors)
+- **Auto validation**: Checks if the symbol can be safely renamed before offering the refactor UI
+- **Configuration**: `phpResolver.enableRenameModule` (default true)
+
+### Auto Import / Fix Missing Use (Code Actions)
+
+Detect unresolved class references and offer quick fixes:
+
+- **Detect unresolved names**: When you use a class name without a corresponding `use` statement
+- **Code actions (Ctrl+.)**:
+  - `Add use ClassName` - Inserts the use statement at the top of the file
+  - `Use \Fully\Qualified\ClassName` - Replaces the name with fully-qualified namespace
+- **Smart ranking**: Shows best matches first, limited to top 3 candidates
+- **Configuration**: `phpResolver.enableMissingUseModule` (default true)
+
+### Go to Implementation
+
+Navigate from base symbols to concrete implementations:
+
+- **Classes / Interfaces / Traits**: Shows derived classes and implementing classes
+- **Methods**: On a base or interface method, shows overriding methods in derived classes
+- **Trace support**: Use `Show Implementation Trace` to inspect resolution flow
+- **Configuration**: `phpResolver.enableImplementationModule` (default true)
+
+## Phase 3 Modules
+
+Version 3.0 introduces a suite of advanced PHP intelligence modules, each independently toggleable.
+
+### Code Lens (References & Implementations)
+
+Shows inline reference and implementation counts above class, interface, trait, and function declarations.
+
+- **"N references"** — click to see all usage locations
+- **"N implementations"** — click to see derived/implementing classes
+- Setting: `phpResolver.enableCodeLensModule` (default: `true`)
+
+### Type Hierarchy
+
+Native VS Code type hierarchy support (right-click → Show Type Hierarchy):
+
+- **Supertypes** — navigate up to parent classes and implemented interfaces
+- **Subtypes** — navigate down to child classes and implementors
+- Powered by the persistent `parentToChildren` inheritance graph
+- Setting: `phpResolver.enableTypeHierarchyModule` (default: `true`)
+
+### Dead Code Scanner
+
+Detect classes and functions with zero cross-file references:
+
+- Run via command: `PHP Resolver: Run Dead Code Scan`
+- Opens a full report with **clickable file paths** — click to jump to the symbol
+- Results also appear in the Problems panel as Hint-severity diagnostics
+- Excludes common framework patterns (controllers, migrations, test classes, etc.)
+- Setting: `phpResolver.enableDeadCodeModule` (default: `true`)
+
+### Document Symbol (Outline View)
+
+Enhanced outline view showing classes, methods, properties, and constants with correct symbol kinds and hierarchy.
+
+- Setting: `phpResolver.enableDocumentSymbolModule` (default: `true`)
+
+### Inlay Hints (Parameter Names)
+
+Shows parameter names inline at call sites, so you can see which argument maps to which parameter without checking the function signature.
+
+- Setting: `phpResolver.enableInlayHintsModule` (default: `true`)
+
+### Sort & Organize Imports
+
+Groups and alphabetically sorts `use` statements with a single command:
+
+- Command: `PHP Resolver: Sort and Organize Imports`
+- Groups: classes, functions (`use function`), and constants (`use const`)
+- Setting: `phpResolver.enableSortImportsModule` (default: `true`)
+
+### Extract Interface
+
+Code action to generate an interface from a class's public methods:
+
+- Place cursor on a class → lightbulb → **Extract Interface**
+- Creates a new interface file with all public method signatures
+- Setting: `phpResolver.enableExtractInterfaceModule` (default: `true`)
+
+### Circular Dependency Detection
+
+Detects namespace-level circular import chains via DFS graph traversal:
+
+- Command: `PHP Resolver: Check Circular Dependencies`
+- Reports dependency cycles that may cause autoloading issues
+- Setting: `phpResolver.enableCircularDependencyModule` (default: `true`)
+
+### Namespace Completion
+
+Autocomplete inside `use` statements — type a namespace prefix and get suggestions from the entire workspace index.
+
+- Setting: `phpResolver.enableNamespaceCompletionModule` (default: `true`)
+
+### PHPDoc Inheritance
+
+Shows inherited PHPDoc on hover when a method doesn't have its own documentation but a parent/interface does.
+
+- Setting: `phpResolver.enableDocInheritanceModule` (default: `true`)
+
+### Unused Import Detection
+
+Real-time diagnostics for unused `use` statements with quick-fix removal:
+
+- Unused imports are highlighted with `Unnecessary` tag (faded out)
+- Quick-fix: **Remove unused import** (single or all at once)
+- Setting: `phpResolver.enableUnusedImportModule` (default: `true`)
+
+## Performance Optimizations
+
+Version 3.0 includes significant performance improvements:
+
+- **Reverse token index** (`tokenToFiles`) — O(1) lookup for symbol references instead of scanning all files
+- **Persistent inheritance graph** (`parentToChildren`) — instant subtype lookups without rebuilding
+- **LRU file content cache** — avoids re-reading frequently accessed files from disk
+- **Binary search** in offset range checks for faster symbol resolution
+- **Lazy class records cache** with dirty tracking — rebuilds only when the index changes
+- **Workspace folder caching** — eliminates repeated workspace folder lookups
+- **Configuration caching** — reads settings once and invalidates on change
+- **Incremental index updates** — only changed files are reparsed on save
 
 ## Namespace resolving
 
@@ -699,3 +898,15 @@ You can override these default keybindings on your `keybindings.json`.
 - [@StoilDobreff](https://github.com/sdobreff/)
 
 Copyright (c) 2025 Stoil Dobreff
+
+---
+
+## Also by the Author
+
+### 🔍 [0-day Analytics](https://wordpress.org/plugins/0-day-analytics/) — The Best Security & Monitoring Plugin for WordPress
+discover what's really happening on your WordPress site behind the scenes.
+
+Keep your WordPress site under control with real-time monitoring, security insights, and deep diagnostics that WordPress will never tell you about.
+
+👉 [**Learn more about 0-day Analytics**](https://0-day-analytics.com/) — 
+Things no one likes to talk about.

@@ -2,11 +2,11 @@
 	"name": "php-resolver",
 	"displayName": "PHP Resolver",
 	"description": "Resolves most of your PHP problems - imports, expands and collapses php namespaces, monitors your PHP error log, uses PHP beautifier and PHP sniffer",
-	"version": "2.3.4",
+	"version": "3.0.0",
 	"publisher": "StoilDobreff",
 	"author": "Stoil Dobreff <sdobreff@gmail.com>",
 	"license": "SEE LICENSE IN LICENSE.txt",
-	"versionChanges": "Added resolver (CodeActions), which adds phpcs inline comment to escape current phpcs errors quickly. Code improvements.",
+	"versionChanges": "Added built-in Go to Definition with cached indexing, definition trace output, cache reset command, module toggles for definition/docblock, and ZIP/docblock improvements.",
 	"newVersion": "Thank you for installing the PHP Resolver extension. Click OK if you want to check out the repository.",
 	"engines": {
 		"vscode": "^1.68.0"
@@ -54,12 +54,31 @@
 		"onCommand:phpResolver.docblockTrigger",
 		"onCommand:phpResolver.clearDefinitionCache",
 		"onCommand:phpResolver.showDefinitionTrace",
+		"onCommand:phpResolver.showReferencesTrace",
+		"onCommand:phpResolver.showImplementationTrace",
+		"onCommand:phpResolver.showIndexHealth",
+		"onCommand:phpResolver.runWorkspaceDiagnostics",
+		"onCommand:phpResolver.clearWorkspaceDiagnostics",
+		"onCommand:phpResolver.runBenchmark",
+		"onCommand:phpResolver.runDeadCodeScan",
+		"onCommand:phpResolver.clearDeadCode",
+		"onCommand:phpResolver.runCircularDependencyScan",
+		"onCommand:phpResolver.clearCircularDependencies",
+		"onCommand:phpResolver.sortOrganizeImports",
+		"onCommand:phpResolver.removeUnusedImports",
+		"onCommand:phpResolver.extractInterface",
 		"onCommand:phpResolver.beautify",
 		"onCommand:phpResolver.fixer",
 		"onCommand:phpResolver.clearErrorChannel"
 	],
 	"main": "./src/extension",
 	"icon": "images/icon.png",
+	"scripts": {
+		"test:phase1": "node test/phase1/index.test.js",
+		"test:phase2": "node test/phase2/regression.test.js",
+		"test:phase3": "node test/phase3/phase3.test.js",
+		"test": "node test/phase1/index.test.js && node test/phase2/regression.test.js && node test/phase3/phase3.test.js"
+	},
 	"contributes": {
 		"menus": {
 			"editor/context": [
@@ -151,6 +170,111 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Include vendor directory when building PHP definition index"
+				},
+				"phpResolver.enableDefinitionModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable PHP Resolver Go to Definition module (requires window reload)"
+				},
+				"phpResolver.enableReferencesModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable References provider module (requires window reload)"
+				},
+				"phpResolver.enableWorkspaceSymbolsModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable Workspace Symbols provider module (requires window reload)"
+				},
+				"phpResolver.enableHoverModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable Hover provider module (requires window reload)"
+				},
+				"phpResolver.enableRenameModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable safe Rename Symbol provider module (requires window reload)"
+				},
+				"phpResolver.enableImplementationModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable Go to Implementation provider module (requires window reload)"
+				},
+				"phpResolver.enableMissingUseModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable Auto Import / Fix Missing Use code actions module (requires window reload)"
+				},
+				"phpResolver.enableCallHierarchyModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable Call Hierarchy provider for PHP functions and methods (requires window reload)"
+				},
+				"phpResolver.enableWordPressHookModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable WordPress Hook Navigator — jump between add_action/do_action and add_filter/apply_filters (requires window reload)"
+				},
+				"phpResolver.enableIndexHealthModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable Index Health status bar indicator and report command (requires window reload)"
+				},
+				"phpResolver.enableWorkspaceDiagnosticsModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable workspace-wide diagnostics for duplicate declarations and unresolved parents (requires window reload)"
+				},
+				"phpResolver.enableCodeLensModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable Code Lens showing reference and implementation counts above declarations (requires window reload)"
+				},
+				"phpResolver.enableTypeHierarchyModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable Type Hierarchy provider for navigating class inheritance (requires window reload)"
+				},
+				"phpResolver.enableDeadCodeModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable Dead Code detection — highlights classes/functions with zero references (requires window reload)"
+				},
+				"phpResolver.enableDocumentSymbolModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable Document Symbols (Outline view) for PHP classes, methods, properties, and constants (requires window reload)"
+				},
+				"phpResolver.enableInlayHintsModule": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enable or disable Inlay Hints showing parameter names at call sites (requires window reload)"
+				},
+				"phpResolver.enableUnusedImportModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable unused import (use statement) detection and removal (requires window reload)"
+				},
+				"phpResolver.enableNamespaceCompletionModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable namespace/class name completion in use statements and type positions (requires window reload)"
+				},
+				"phpResolver.enableDocInheritanceModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable inherited PHPDoc display on hover for methods without their own docblock (requires window reload)"
+				},
+				"phpResolver.definitionSingleResult": {
+					"type": "boolean",
+					"default": true,
+					"description": "Return only the top-ranked definition result to keep Peek/hover definitions deterministic"
+				},
+				"phpResolver.definitionDeprioritizeNoopFiles": {
+					"type": "boolean",
+					"default": true,
+					"description": "Lower ranking for noop.php-like files when resolving definitions"
 				},
 				"phpResolver.definitionUsePersistentCache": {
 					"type": "boolean",
@@ -481,6 +605,11 @@
 					"default": null,
 					"description": "Specify the default template for classes."
 				},
+				"phpResolver.enableDocblockModule": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable DocBlock/snippet module (requires window reload)"
+				},
 				"phpResolver.author": {
 					"type": "object",
 					"default": {
@@ -493,68 +622,120 @@
 		},
 		"commands": [
 			{
-				"title": "Import Class",
+				"title": "PHP Resolver: Import Class",
 				"command": "phpResolver.import"
 			},
 			{
-				"title": "Import All Classes",
+				"title": "PHP Resolver: Import All Classes",
 				"command": "phpResolver.importAll"
 			},
 			{
-				"title": "Expand with namespace",
+				"title": "PHP Resolver: Expand with namespace",
 				"command": "phpResolver.expand"
 			},
 			{
-				"title": "Sort Imports",
+				"title": "PHP Resolver: Sort Imports",
 				"command": "phpResolver.sort"
 			},
 			{
-				"title": "Generate namespace for this file",
+				"title": "PHP Resolver: Generate namespace for this file",
 				"command": "phpResolver.generateNamespace"
 			},
 			{
-				"title": "Create ZIP Archive",
+				"title": "PHP Resolver: Create ZIP Archive",
 				"command": "phpResolver.createZip"
 			},
 			{
-				"title": "Open ZIP Contents",
+				"title": "PHP Resolver: Open ZIP Contents",
 				"command": "phpResolver.openZipContents"
 			},
 			{
-				"title": "Refresh ZIP Contents",
+				"title": "PHP Resolver: Refresh ZIP Contents",
 				"command": "phpResolver.refreshZipContents",
 				"icon": "$(refresh)"
 			},
 			{
-				"title": "Extract ZIP Archive",
+				"title": "PHP Resolver: Extract ZIP Archive",
 				"command": "phpResolver.extractZip"
 			},
 			{
-				"title": "Insert PHP Docblock",
+				"title": "PHP Resolver: Insert PHP Docblock",
 				"command": "phpResolver.docblockTrigger"
 			},
 			{
-				"title": "Sync Parameter Names (Docblock ↔ Function)",
+				"title": "PHP Resolver: Sync Parameter Names (Docblock ↔ Function)",
 				"command": "phpResolver.syncParams"
 			},
 			{
-				"title": "Clear Definition Cache",
+				"title": "PHP Resolver: Clear Definition Cache",
 				"command": "phpResolver.clearDefinitionCache"
 			},
 			{
-				"title": "Show Definition Trace",
+				"title": "PHP Resolver: Show Definition Trace",
 				"command": "phpResolver.showDefinitionTrace"
 			},
 			{
-				"title": "Beautify code (phpcbf)",
+				"title": "PHP Resolver: Show References Trace",
+				"command": "phpResolver.showReferencesTrace"
+			},
+			{
+				"title": "PHP Resolver: Show Implementation Trace",
+				"command": "phpResolver.showImplementationTrace"
+			},
+			{
+				"title": "PHP Resolver: Show Index Health Report",
+				"command": "phpResolver.showIndexHealth"
+			},
+			{
+				"title": "PHP Resolver: Run Workspace Diagnostics Scan",
+				"command": "phpResolver.runWorkspaceDiagnostics"
+			},
+			{
+				"title": "PHP Resolver: Clear Workspace Diagnostics",
+				"command": "phpResolver.clearWorkspaceDiagnostics"
+			},
+			{
+				"title": "PHP Resolver: Run Performance Benchmark",
+				"command": "phpResolver.runBenchmark"
+			},
+			{
+				"title": "PHP Resolver: Run Dead Code Scan",
+				"command": "phpResolver.runDeadCodeScan"
+			},
+			{
+				"title": "PHP Resolver: Clear Dead Code Diagnostics",
+				"command": "phpResolver.clearDeadCode"
+			},
+			{
+				"title": "PHP Resolver: Run Circular Dependency Scan",
+				"command": "phpResolver.runCircularDependencyScan"
+			},
+			{
+				"title": "PHP Resolver: Clear Circular Dependency Diagnostics",
+				"command": "phpResolver.clearCircularDependencies"
+			},
+			{
+				"title": "PHP Resolver: Sort & Organize Imports",
+				"command": "phpResolver.sortOrganizeImports"
+			},
+			{
+				"title": "PHP Resolver: Remove Unused Imports",
+				"command": "phpResolver.removeUnusedImports"
+			},
+			{
+				"title": "PHP Resolver: Extract Interface from Class",
+				"command": "phpResolver.extractInterface"
+			},
+			{
+				"title": "PHP Resolver: Beautify code (phpcbf)",
 				"command": "phpResolver.beautify"
 			},
 			{
-				"title": "Fix code (php-cs-fixer)",
+				"title": "PHP Resolver: Fix code (php-cs-fixer)",
 				"command": "phpResolver.fixer"
 			},
 			{
-				"title": "Clear error log channel",
+				"title": "PHP Resolver: Clear error log channel",
 				"command": "phpResolver.clearErrorChannel"
 			}
 		],

@@ -10,8 +10,27 @@ const activeEditor = () => {
     return vscode.window.activeTextEditor;
 }
 
+let _configCache = {};
+let _configDirty = true;
+
+// Invalidate cache when configuration changes
+if (vscode.workspace && typeof vscode.workspace.onDidChangeConfiguration === 'function') {
+    vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('phpResolver')) {
+            _configDirty = true;
+        }
+    });
+}
+
 const config = (key) => {
-    return vscode.workspace.getConfiguration('phpResolver').get(key);
+    if (_configDirty) {
+        _configCache = {};
+        _configDirty = false;
+    }
+    if (!(key in _configCache)) {
+        _configCache[key] = vscode.workspace.getConfiguration('phpResolver').get(key);
+    }
+    return _configCache[key];
 }
 
 const showMessage = (message, error = false) => {

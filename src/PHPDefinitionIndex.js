@@ -4,8 +4,9 @@ let path = require('path');
 let crypto = require('crypto');
 let { config } = require('./Helpers');
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const CACHE_FILE = 'php-definition-index-cache.json';
+const FILE_CONTENT_CACHE_SIZE = 150;
 
 class PHPDefinitionIndex {
     constructor(context, logger = null) {
@@ -19,6 +20,22 @@ class PHPDefinitionIndex {
         this.shortFunctionIndex = new Map();
         this.methodIndex = new Map();
         this.shortMethodIndex = new Map();
+
+        // Performance: reverse token index (tokenName → Set<filePath>)
+        this.tokenToFiles = new Map();
+
+        // Performance: persistent inheritance graph (parentFqcn → Set<childFqcn>)
+        this.parentToChildren = new Map();
+
+        // Performance: persistent class record set
+        this._allClassRecords = [];
+        this._allClassRecordsDirty = true;
+
+        // Performance: LRU file content cache
+        this._fileContentCache = new Map();
+
+        // Performance: workspace folder cache
+        this._workspaceFolderCache = new Map();
 
         this.watcher = null;
         this.flushTimer = null;
@@ -69,6 +86,321 @@ class PHPDefinitionIndex {
     async findDefinitionLocations(document, position) {
         let result = await this.findDefinitionWithTrace(document, position);
         return result.locations;
+    }
+
+    async findReferencesWithTrace(document, position, includeDeclaration = true) {
+        await this.waitUntilReady();
+
+        let trace = [];
+        const pushTrace = (message) => {
+            trace.push(message);
+        };
+
+        let definition = await this.findDefinitionWithTrace(document, position);
+        for (let line of definition.trace) {
+            pushTrace('definition/' + line);
+        }
+
+        if (!definition.locations || definition.locations.length === 0) {
+            pushTrace('references/no-definition');
+            return { locations: [], trace };
+        }
+
+        let primaryRecord = this.findRecordByLocation(definition.locations[0]);
+        if (!primaryRecord) {
+            pushTrace('references/no-primary-record');
+            return { locations: includeDeclaration ? definition.locations : [], trace };
+        }
+
+        pushTrace('references/symbol-kind=' + primaryRecord.kind + ' name=' + primaryRecord.name);
+
+        let locations = [];
+        if (includeDeclaration) {
+            locations = locations.concat(definition.locations);
+        }
+
+        let regexes = this.buildReferenceRegexes(primaryRecord);
+        pushTrace('references/patterns=' + regexes.length);
+
+        let declarationSet = new Set();
+        for (let loc of definition.locations) {
+            declarationSet.add(loc.uri.fsPath + ':' + (loc.range.start.line + 1));
+        }
+
+        // Use reverse token index to narrow file set
+        let files = this._getCandidateFiles(primaryRecord.name);
+        pushTrace('references/candidate-files=' + files.length + ' total=' + this.fileEntries.size);
+
+        for (let filePath of files) {
+            let text = await this._readFileCached(filePath);
+            if (!text) continue;
+
+            let found = this.findRegexLocationsInText(filePath, text, regexes);
+            if (!includeDeclaration) {
+                found = found.filter((loc) => {
+                    let key = loc.uri.fsPath + ':' + (loc.range.start.line + 1);
+                    return !declarationSet.has(key);
+                });
+            }
+
+            locations = locations.concat(found);
+        }
+
+        let dedup = this.dedupeLocations(locations);
+        pushTrace('references/count=' + dedup.length);
+
+        return { locations: dedup, trace };
+    }
+
+    async findImplementationsWithTrace(document, position) {
+        await this.waitUntilReady();
+
+        let trace = [];
+        const pushTrace = (message) => {
+            trace.push(message);
+        };
+
+        let definition = await this.findDefinitionWithTrace(document, position);
+        for (let line of definition.trace) {
+            pushTrace('definition/' + line);
+        }
+
+        if (!definition.locations || definition.locations.length === 0) {
+            pushTrace('implementation/no-definition');
+            return { locations: [], trace };
+        }
+
+        let primary = this.findRecordByLocation(definition.locations[0]);
+        if (!primary) {
+            pushTrace('implementation/no-primary-record');
+            return { locations: [], trace };
+        }
+
+        pushTrace('implementation/source-kind=' + primary.kind + ' source-name=' + primary.name);
+
+        if (primary.kind === 'class') {
+            let targetFqcn = (primary.fqcn || primary.name || '').toLowerCase();
+            let implementingClasses = this.findDerivedClassRecords(targetFqcn);
+            let rankedClasses = this.rankRecords(implementingClasses, document.uri);
+            pushTrace('implementation/class-derived-count=' + rankedClasses.length);
+            return { locations: this.toLocations(rankedClasses), trace };
+        }
+
+        if (primary.kind === 'method') {
+            let targetClass = (primary.classFqcn || '').toLowerCase();
+            if (!targetClass) {
+                pushTrace('implementation/method-missing-class');
+                return { locations: [], trace };
+            }
+
+            let implementingClasses = this.findDerivedClassRecords(targetClass);
+            let methodRecords = [];
+
+            for (let classRecord of implementingClasses) {
+                let methodKey = (classRecord.fqcn + '::' + primary.name).toLowerCase();
+                let matches = this.methodIndex.get(methodKey) || [];
+                methodRecords = methodRecords.concat(matches);
+            }
+
+            let rankedMethods = this.rankRecords(methodRecords, document.uri);
+            pushTrace('implementation/method-derived-count=' + rankedMethods.length);
+            return { locations: this.toLocations(rankedMethods), trace };
+        }
+
+        pushTrace('implementation/unsupported-kind=' + primary.kind);
+        return { locations: [], trace };
+    }
+
+    async findHover(document, position) {
+        await this.waitUntilReady();
+
+        let result = await this.findDefinitionWithTrace(document, position);
+        if (!result.locations || result.locations.length === 0) {
+            return null;
+        }
+
+        let primary = this.findRecordByLocation(result.locations[0]);
+        if (!primary) {
+            return null;
+        }
+
+        let tokenRange = document.getWordRangeAtPosition(position, /[A-Za-z_\\][A-Za-z0-9_\\]*/);
+        let markdown = new vscode.MarkdownString();
+        markdown.appendCodeblock(this.getRecordDisplayName(primary), 'php');
+        markdown.appendMarkdown('\n\nKind: **' + primary.kind + '**');
+        markdown.appendMarkdown('\n\nDefined in: `' + path.basename(primary.filePath) + ':' + primary.line + '`');
+
+        let declarationLine = await this.getDeclarationLine(primary.filePath, primary.line);
+        if (declarationLine) {
+            markdown.appendMarkdown('\n\nDeclaration:');
+            markdown.appendCodeblock(declarationLine.trim(), 'php');
+        }
+
+        return {
+            contents: [markdown],
+            range: tokenRange,
+        };
+    }
+
+    async findWorkspaceSymbols(query) {
+        await this.waitUntilReady();
+
+        let search = (query || '').trim().toLowerCase();
+        let all = this.getAllSymbolRecords();
+
+        let filtered = all.filter((record) => {
+            if (!search) {
+                return true;
+            }
+
+            let fq = '';
+            if (record.kind === 'class') {
+                fq = record.fqcn || '';
+            } else if (record.kind === 'function') {
+                fq = record.fqfn || '';
+            } else if (record.kind === 'method') {
+                fq = record.methodKey || '';
+            }
+
+            return record.name.toLowerCase().includes(search) || fq.toLowerCase().includes(search);
+        });
+
+        let max = 2000;
+        return filtered.slice(0, max).map((record) => {
+            return new vscode.SymbolInformation(
+                this.getRecordDisplayName(record),
+                this.mapRecordToSymbolKind(record),
+                this.getRecordContainerName(record),
+                new vscode.Location(
+                    vscode.Uri.file(record.filePath),
+                    new vscode.Position(Math.max(0, record.line - 1), 0)
+                )
+            );
+        });
+    }
+
+    async getRenameContext(document, position) {
+        await this.waitUntilReady();
+
+        let definitionResult = await this.findDefinitionWithTrace(document, position);
+        if (!definitionResult.locations || definitionResult.locations.length === 0) {
+            return null;
+        }
+
+        let primary = this.findRecordByLocation(definitionResult.locations[0]);
+        if (!primary) {
+            return null;
+        }
+
+        // Safe scope for Phase 2 start: class/function only.
+        if (primary.kind !== 'class' && primary.kind !== 'function') {
+            return null;
+        }
+
+        let range = document.getWordRangeAtPosition(position, /[A-Za-z_][A-Za-z0-9_]*/);
+        return {
+            record: primary,
+            range,
+            oldName: primary.name,
+        };
+    }
+
+    async buildRenameWorkspaceEdit(document, position, newName) {
+        let renameContext = await this.getRenameContext(document, position);
+        if (!renameContext) {
+            return null;
+        }
+
+        if (!this.isValidPhpIdentifier(newName)) {
+            throw new Error('Invalid PHP identifier for rename: ' + newName);
+        }
+
+        let referencesResult = await this.findReferencesWithTrace(document, position, true);
+        if (!referencesResult.locations || referencesResult.locations.length === 0) {
+            return null;
+        }
+
+        let edit = new vscode.WorkspaceEdit();
+        let seen = new Set();
+        let linesCache = new Map();
+
+        for (let location of referencesResult.locations) {
+            let filePath = location.uri.fsPath;
+            let line = location.range.start.line;
+            let hintChar = location.range.start.character;
+
+            if (!linesCache.has(filePath)) {
+                let text = await this._readFileCached(filePath);
+                linesCache.set(filePath, text ? text.split(/\r?\n/) : []);
+            }
+
+            let lines = linesCache.get(filePath);
+            if (line < 0 || line >= lines.length) {
+                continue;
+            }
+
+            let lineText = lines[line];
+            let column = this.findClosestWordIndex(lineText, renameContext.oldName, hintChar);
+            if (column === -1) {
+                continue;
+            }
+
+            let key = filePath + ':' + line + ':' + column;
+            if (seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+
+            let range = new vscode.Range(
+                new vscode.Position(line, column),
+                new vscode.Position(line, column + renameContext.oldName.length)
+            );
+
+            edit.replace(vscode.Uri.file(filePath), range, newName);
+        }
+
+        if (seen.size === 0) {
+            return null;
+        }
+
+        return edit;
+    }
+
+    findClosestWordIndex(lineText, word, hintChar) {
+        if (!lineText || !word) {
+            return -1;
+        }
+
+        let regex = new RegExp('\\b' + this.escapeRegex(word) + '\\b', 'g');
+        let matches = [];
+        let match;
+
+        while ((match = regex.exec(lineText)) !== null) {
+            matches.push(match.index);
+            if (match.index === regex.lastIndex) {
+                regex.lastIndex++;
+            }
+        }
+
+        if (matches.length === 0) {
+            return -1;
+        }
+
+        let best = matches[0];
+        let bestDistance = Math.abs(matches[0] - hintChar);
+        for (let candidate of matches) {
+            let distance = Math.abs(candidate - hintChar);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
+    isValidPhpIdentifier(value) {
+        return /^[A-Za-z_][A-Za-z0-9_]*$/.test(String(value || ''));
     }
 
     async findDefinitionWithTrace(document, position) {
@@ -255,6 +587,93 @@ class PHPDefinitionIndex {
         return this.uniqueStrings(candidates);
     }
 
+    findDerivedClassRecords(targetFqcn) {
+        let target = String(targetFqcn || '').replace(/^\\+/, '').toLowerCase();
+        if (!target) {
+            return [];
+        }
+
+        // Rebuild parentToChildren on demand if it appears stale
+        // (e.g., fileEntries was replaced externally in tests)
+        if (this.parentToChildren.size === 0 && this.fileEntries.size > 0) {
+            this._rebuildInheritanceGraph();
+        }
+
+        // BFS through parentToChildren graph
+        let descendants = new Set();
+        let queue = [target];
+        while (queue.length > 0) {
+            let current = queue.shift();
+            let children = this.parentToChildren.get(current);
+            if (children) {
+                for (let child of children) {
+                    if (!descendants.has(child)) {
+                        descendants.add(child);
+                        queue.push(child);
+                    }
+                }
+            }
+        }
+
+        if (descendants.size === 0) {
+            return [];
+        }
+
+        // Resolve fqcn set to actual class records
+        let results = [];
+        for (let fqcn of descendants) {
+            let records = this.classIndex.get(fqcn);
+            if (records) {
+                results.push(...records);
+            } else {
+                // Fallback: search fileEntries directly
+                for (let entry of this.fileEntries.values()) {
+                    for (let sym of entry.symbols || []) {
+                        if (sym.kind === 'class' && (sym.fqcn || '').toLowerCase() === fqcn) {
+                            results.push(sym);
+                        }
+                    }
+                }
+            }
+        }
+        return results;
+    }
+
+    _rebuildInheritanceGraph() {
+        this.parentToChildren.clear();
+        for (let entry of this.fileEntries.values()) {
+            for (let symbol of entry.symbols || []) {
+                if (symbol.kind === 'class' && Array.isArray(symbol.parents)) {
+                    for (let parent of symbol.parents) {
+                        let parentKey = String(parent || '').replace(/^\\+/, '').toLowerCase();
+                        if (parentKey) {
+                            if (!this.parentToChildren.has(parentKey)) {
+                                this.parentToChildren.set(parentKey, new Set());
+                            }
+                            this.parentToChildren.get(parentKey).add((symbol.fqcn || '').toLowerCase());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    getAllClassRecords() {
+        if (this._allClassRecordsDirty) {
+            let out = [];
+            for (let entry of this.fileEntries.values()) {
+                for (let symbol of entry.symbols || []) {
+                    if (symbol.kind === 'class') {
+                        out.push(symbol);
+                    }
+                }
+            }
+            this._allClassRecords = out;
+            this._allClassRecordsDirty = false;
+        }
+        return this._allClassRecords;
+    }
+
     uniqueStrings(values) {
         let out = [];
         let seen = new Set();
@@ -302,10 +721,20 @@ class PHPDefinitionIndex {
 
     rankRecords(records, currentUri) {
         let currentFolder = vscode.workspace.getWorkspaceFolder(currentUri);
+        let deprioritizeNoop = config('definitionDeprioritizeNoopFiles') !== false;
+
+        let getFolder = (filePath) => {
+            if (this._workspaceFolderCache.has(filePath)) {
+                return this._workspaceFolderCache.get(filePath);
+            }
+            let folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath));
+            this._workspaceFolderCache.set(filePath, folder);
+            return folder;
+        };
 
         let sorted = [...records].sort((a, b) => {
-            let folderA = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(a.filePath));
-            let folderB = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(b.filePath));
+            let folderA = getFolder(a.filePath);
+            let folderB = getFolder(b.filePath);
 
             let scoreA = 0;
             let scoreB = 0;
@@ -322,6 +751,15 @@ class PHPDefinitionIndex {
             }
             if (!this.isVendorPath(b.filePath)) {
                 scoreB += 2;
+            }
+
+            if (deprioritizeNoop) {
+                if (this.isNoopLikePath(a.filePath)) {
+                    scoreA -= 8;
+                }
+                if (this.isNoopLikePath(b.filePath)) {
+                    scoreB -= 8;
+                }
             }
 
             if (scoreA !== scoreB) {
@@ -427,15 +865,18 @@ class PHPDefinitionIndex {
             }
 
             let text = await fs.promises.readFile(filePath, 'utf8');
-            let hash = crypto.createHash('sha1').update(text).digest('hex');
 
-            if (existing && existing.hash === hash) {
-                existing.mtimeMs = stat.mtimeMs;
-                existing.size = stat.size;
-                this.fileEntries.set(filePath, existing);
-                return;
+            // Only hash if size matches (mtime changed but content might be same)
+            if (existing && existing.size === stat.size) {
+                let hash = crypto.createHash('sha1').update(text).digest('hex');
+                if (existing.hash === hash) {
+                    existing.mtimeMs = stat.mtimeMs;
+                    this.fileEntries.set(filePath, existing);
+                    return;
+                }
             }
 
+            let hash = crypto.createHash('sha1').update(text).digest('hex');
             let parsed = this.parseDocument(filePath, text);
             let nextEntry = {
                 filePath,
@@ -450,6 +891,9 @@ class PHPDefinitionIndex {
             this.removeFile(filePath);
             this.fileEntries.set(filePath, nextEntry);
             this.addEntryToIndexes(nextEntry);
+
+            // Invalidate file content cache for this path
+            this._fileContentCache.delete(filePath);
 
             if (!skipFlush) {
                 this.scheduleFlushCache();
@@ -474,14 +918,34 @@ class PHPDefinitionIndex {
             if (symbol.kind === 'class') {
                 this.pushIndex(this.classIndex, symbol.fqcn.toLowerCase(), symbol);
                 this.pushIndex(this.shortClassIndex, symbol.name.toLowerCase(), symbol);
+
+                // Reverse token index
+                this._addTokenRef(symbol.name, entry.filePath);
+                if (symbol.fqcn) this._addTokenRef(symbol.fqcn.split('\\').pop(), entry.filePath);
+
+                // Inheritance graph
+                if (Array.isArray(symbol.parents)) {
+                    for (let parent of symbol.parents) {
+                        let parentKey = String(parent || '').replace(/^\\+/, '').toLowerCase();
+                        if (parentKey) {
+                            if (!this.parentToChildren.has(parentKey)) {
+                                this.parentToChildren.set(parentKey, new Set());
+                            }
+                            this.parentToChildren.get(parentKey).add(symbol.fqcn.toLowerCase());
+                        }
+                    }
+                }
             } else if (symbol.kind === 'function') {
                 this.pushIndex(this.functionIndex, symbol.fqfn.toLowerCase(), symbol);
                 this.pushIndex(this.shortFunctionIndex, symbol.name.toLowerCase(), symbol);
+                this._addTokenRef(symbol.name, entry.filePath);
             } else if (symbol.kind === 'method') {
                 this.pushIndex(this.methodIndex, symbol.methodKey.toLowerCase(), symbol);
                 this.pushIndex(this.shortMethodIndex, symbol.name.toLowerCase(), symbol);
+                this._addTokenRef(symbol.name, entry.filePath);
             }
         }
+        this._allClassRecordsDirty = true;
     }
 
     removeEntryFromIndexes(entry) {
@@ -489,6 +953,19 @@ class PHPDefinitionIndex {
             if (symbol.kind === 'class') {
                 this.pullIndex(this.classIndex, symbol.fqcn.toLowerCase(), symbol);
                 this.pullIndex(this.shortClassIndex, symbol.name.toLowerCase(), symbol);
+
+                // Remove from inheritance graph
+                if (Array.isArray(symbol.parents)) {
+                    for (let parent of symbol.parents) {
+                        let parentKey = String(parent || '').replace(/^\\+/, '').toLowerCase();
+                        if (parentKey && this.parentToChildren.has(parentKey)) {
+                            this.parentToChildren.get(parentKey).delete(symbol.fqcn.toLowerCase());
+                            if (this.parentToChildren.get(parentKey).size === 0) {
+                                this.parentToChildren.delete(parentKey);
+                            }
+                        }
+                    }
+                }
             } else if (symbol.kind === 'function') {
                 this.pullIndex(this.functionIndex, symbol.fqfn.toLowerCase(), symbol);
                 this.pullIndex(this.shortFunctionIndex, symbol.name.toLowerCase(), symbol);
@@ -496,6 +973,66 @@ class PHPDefinitionIndex {
                 this.pullIndex(this.methodIndex, symbol.methodKey.toLowerCase(), symbol);
                 this.pullIndex(this.shortMethodIndex, symbol.name.toLowerCase(), symbol);
             }
+        }
+
+        // Remove file from all token refs
+        this._removeFileFromTokenIndex(entry.filePath);
+        this._allClassRecordsDirty = true;
+    }
+
+    _addTokenRef(tokenName, filePath) {
+        let key = tokenName.toLowerCase();
+        if (!this.tokenToFiles.has(key)) {
+            this.tokenToFiles.set(key, new Set());
+        }
+        this.tokenToFiles.get(key).add(filePath);
+    }
+
+    _removeFileFromTokenIndex(filePath) {
+        for (let fileSet of this.tokenToFiles.values()) {
+            fileSet.delete(filePath);
+        }
+    }
+
+    /**
+     * Get candidate files that might contain references to the given token name.
+     * Falls back to all files if token not in index.
+     */
+    _getCandidateFiles(tokenName) {
+        let key = tokenName.toLowerCase();
+        let fileSet = this.tokenToFiles.get(key);
+        if (fileSet && fileSet.size > 0) {
+            return [...fileSet];
+        }
+        // Fallback: scan all files (token might appear in strings/comments not indexed)
+        return [...this.fileEntries.keys()];
+    }
+
+    /**
+     * Read file with LRU caching.
+     */
+    async _readFileCached(filePath) {
+        if (this._fileContentCache.has(filePath)) {
+            // Move to end (most recently used)
+            let content = this._fileContentCache.get(filePath);
+            this._fileContentCache.delete(filePath);
+            this._fileContentCache.set(filePath, content);
+            return content;
+        }
+
+        try {
+            let text = await fs.promises.readFile(filePath, 'utf8');
+            this._fileContentCache.set(filePath, text);
+
+            // Evict oldest if over capacity
+            if (this._fileContentCache.size > FILE_CONTENT_CACHE_SIZE) {
+                let firstKey = this._fileContentCache.keys().next().value;
+                this._fileContentCache.delete(firstKey);
+            }
+
+            return text;
+        } catch {
+            return null;
         }
     }
 
@@ -535,18 +1072,23 @@ class PHPDefinitionIndex {
         const classRegex = /^\s*(?:abstract\s+|final\s+)?(class|interface|trait)\s+([A-Za-z_\x7f-\xff][A-Za-z0-9_\x7f-\xff]*)\b/gm;
         let classMatch;
         while ((classMatch = classRegex.exec(text)) !== null) {
+            let classType = classMatch[1];
             let className = classMatch[2];
             let fqcn = context.namespace ? context.namespace + '\\' + className : className;
+            let openBrace = text.indexOf('{', classMatch.index);
+            let header = openBrace === -1 ? '' : text.slice(classMatch.index, openBrace);
+            let parents = this.extractClassParentsFromHeader(header, context);
 
             symbols.push({
                 kind: 'class',
+                classType,
                 name: className,
                 fqcn,
+                parents,
                 filePath,
                 line: this.offsetToLine(lineOffsets, classMatch.index),
             });
 
-            let openBrace = text.indexOf('{', classMatch.index);
             if (openBrace !== -1) {
                 let closeBrace = this.findMatchingBrace(text, openBrace);
                 if (closeBrace !== -1) {
@@ -559,7 +1101,7 @@ class PHPDefinitionIndex {
             }
         }
 
-        const functionRegex = /^\s*(?:public|protected|private|static|final|abstract\s+)*function\s+&?\s*([A-Za-z_\x7f-\xff][A-Za-z0-9_\x7f-\xff]*)\s*\(/gm;
+        const functionRegex = /^\s*(?:(?:public|protected|private|static|final|abstract)\s+)*function\s+&?\s*([A-Za-z_\x7f-\xff][A-Za-z0-9_\x7f-\xff]*)\s*\(/gm;
         let functionMatch;
         while ((functionMatch = functionRegex.exec(text)) !== null) {
             let fnName = functionMatch[1];
@@ -591,6 +1133,39 @@ class PHPDefinitionIndex {
             imports: context.imports,
             symbols,
         };
+    }
+
+    extractClassParentsFromHeader(header, context) {
+        if (!header) {
+            return [];
+        }
+
+        let out = [];
+
+        let extendsMatch = header.match(/\bextends\s+([^\{]+)/i);
+        if (extendsMatch && extendsMatch[1]) {
+            let extendsPart = extendsMatch[1].split(/\bimplements\b/i)[0];
+            let parents = extendsPart.split(',').map((value) => value.trim()).filter(Boolean);
+            for (let parent of parents) {
+                let candidates = this.resolveClassCandidates(parent, context);
+                if (candidates.length > 0) {
+                    out.push(candidates[0]);
+                }
+            }
+        }
+
+        let implementsMatch = header.match(/\bimplements\s+([^\{]+)/i);
+        if (implementsMatch && implementsMatch[1]) {
+            let parents = implementsMatch[1].split(',').map((value) => value.trim()).filter(Boolean);
+            for (let parent of parents) {
+                let candidates = this.resolveClassCandidates(parent, context);
+                if (candidates.length > 0) {
+                    out.push(candidates[0]);
+                }
+            }
+        }
+
+        return this.uniqueStrings(out.map((name) => String(name || '').replace(/^\\+/, '')));
     }
 
     parseNamespaceAndImports(text) {
@@ -723,6 +1298,295 @@ class PHPDefinitionIndex {
         return -1;
     }
 
+    getAllSymbolRecords() {
+        let out = [];
+        for (let entry of this.fileEntries.values()) {
+            if (!entry || !Array.isArray(entry.symbols)) {
+                continue;
+            }
+
+            for (let symbol of entry.symbols) {
+                out.push(symbol);
+            }
+        }
+
+        return out;
+    }
+
+    findRecordByLocation(location) {
+        if (!location || !location.uri || !location.range) {
+            return null;
+        }
+
+        let filePath = location.uri.fsPath;
+        let line = location.range.start.line + 1;
+        let entry = this.fileEntries.get(filePath);
+        if (!entry || !Array.isArray(entry.symbols)) {
+            return null;
+        }
+
+        return entry.symbols.find((item) => item.line === line) || null;
+    }
+
+    getRecordDisplayName(record) {
+        if (record.kind === 'class') {
+            return record.fqcn || record.name;
+        }
+
+        if (record.kind === 'function') {
+            return record.fqfn || record.name;
+        }
+
+        if (record.kind === 'method') {
+            return (record.classFqcn || '<class>') + '::' + record.name;
+        }
+
+        return record.name || '<symbol>';
+    }
+
+    getRecordContainerName(record) {
+        if (record.kind === 'method') {
+            return record.classFqcn || '';
+        }
+
+        if (record.kind === 'class' && record.fqcn && record.fqcn.includes('\\')) {
+            let parts = record.fqcn.split('\\');
+            parts.pop();
+            return parts.join('\\');
+        }
+
+        if (record.kind === 'function' && record.fqfn && record.fqfn.includes('\\')) {
+            let parts = record.fqfn.split('\\');
+            parts.pop();
+            return parts.join('\\');
+        }
+
+        return '';
+    }
+
+    mapRecordToSymbolKind(record) {
+        if (record.kind === 'class') {
+            return vscode.SymbolKind.Class;
+        }
+
+        if (record.kind === 'method') {
+            return vscode.SymbolKind.Method;
+        }
+
+        if (record.kind === 'function') {
+            return vscode.SymbolKind.Function;
+        }
+
+        return vscode.SymbolKind.Variable;
+    }
+
+    async getDeclarationLine(filePath, lineNumber) {
+        let text = await this._readFileCached(filePath);
+        if (!text) return '';
+
+        let lines = text.split(/\r?\n/);
+        let index = Math.max(0, lineNumber - 1);
+        if (index >= lines.length) {
+            return '';
+        }
+
+        return lines[index];
+    }
+
+    buildReferenceRegexes(record) {
+        let out = [];
+
+        if (record.kind === 'class') {
+            let shortName = this.escapeRegex(record.name);
+            let fqcn = this.escapeRegex((record.fqcn || '').replace(/^\\+/, ''));
+
+            out.push(new RegExp('\\b' + shortName + '\\b', 'g'));
+            if (fqcn) {
+                out.push(new RegExp('\\\\' + fqcn + '\\b', 'g'));
+            }
+            return out;
+        }
+
+        if (record.kind === 'function') {
+            let name = this.escapeRegex(record.name);
+            let fqfn = this.escapeRegex((record.fqfn || '').replace(/^\\+/, ''));
+
+            out.push(new RegExp('\\b' + name + '\\s*\\(', 'g'));
+            if (fqfn) {
+                out.push(new RegExp('\\\\' + fqfn + '\\s*\\(', 'g'));
+            }
+            return out;
+        }
+
+        if (record.kind === 'method') {
+            let method = this.escapeRegex(record.name);
+            out.push(new RegExp('::\\s*' + method + '\\s*\\(', 'g'));
+            out.push(new RegExp('->\\s*' + method + '\\s*\\(', 'g'));
+            out.push(new RegExp('\\bfunction\\s+&?\\s*' + method + '\\s*\\(', 'g'));
+            return out;
+        }
+
+        return out;
+    }
+
+    findRegexLocationsInText(filePath, text, regexes) {
+        if (!regexes || regexes.length === 0) {
+            return [];
+        }
+
+        let lineOffsets = this.computeLineOffsets(text);
+        let ignoredRanges = this.computeIgnoredRanges(text);
+        let locations = [];
+
+        for (let regex of regexes) {
+            regex.lastIndex = 0;
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+                let startOffset = match.index;
+                let endOffset = match.index + Math.max(1, match[0].length);
+
+                if (this.isOffsetInRanges(startOffset, ignoredRanges)) {
+                    if (match.index === regex.lastIndex) {
+                        regex.lastIndex++;
+                    }
+                    continue;
+                }
+
+                let start = this.offsetToPosition(lineOffsets, startOffset);
+                let end = this.offsetToPosition(lineOffsets, endOffset);
+
+                locations.push(new vscode.Location(
+                    vscode.Uri.file(filePath),
+                    new vscode.Range(start, end)
+                ));
+
+                if (match.index === regex.lastIndex) {
+                    regex.lastIndex++;
+                }
+            }
+        }
+
+        return locations;
+    }
+
+    computeIgnoredRanges(text) {
+        let ranges = [];
+        let i = 0;
+
+        while (i < text.length) {
+            let ch = text[i];
+            let next = i + 1 < text.length ? text[i + 1] : '';
+
+            if (ch === '/' && next === '/') {
+                let start = i;
+                i += 2;
+                while (i < text.length && text[i] !== '\n') {
+                    i++;
+                }
+                ranges.push([start, i]);
+                continue;
+            }
+
+            if (ch === '/' && next === '*') {
+                let start = i;
+                i += 2;
+                while (i + 1 < text.length && !(text[i] === '*' && text[i + 1] === '/')) {
+                    i++;
+                }
+                i = Math.min(text.length, i + 2);
+                ranges.push([start, i]);
+                continue;
+            }
+
+            if (ch === '#' ) {
+                let start = i;
+                i += 1;
+                while (i < text.length && text[i] !== '\n') {
+                    i++;
+                }
+                ranges.push([start, i]);
+                continue;
+            }
+
+            if (ch === '"' || ch === "'") {
+                let quote = ch;
+                let start = i;
+                i++;
+                while (i < text.length) {
+                    if (text[i] === '\\') {
+                        i += 2;
+                        continue;
+                    }
+
+                    if (text[i] === quote) {
+                        i++;
+                        break;
+                    }
+
+                    i++;
+                }
+                ranges.push([start, i]);
+                continue;
+            }
+
+            i++;
+        }
+
+        return ranges;
+    }
+
+    isOffsetInRanges(offset, ranges) {
+        let low = 0;
+        let high = ranges.length - 1;
+        while (low <= high) {
+            let mid = (low + high) >> 1;
+            if (offset < ranges[mid][0]) {
+                high = mid - 1;
+            } else if (offset >= ranges[mid][1]) {
+                low = mid + 1;
+            } else {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    dedupeLocations(locations) {
+        let out = [];
+        let seen = new Set();
+
+        for (let loc of locations) {
+            let key = [
+                loc.uri.fsPath,
+                loc.range.start.line,
+                loc.range.start.character,
+                loc.range.end.line,
+                loc.range.end.character,
+            ].join(':');
+
+            if (seen.has(key)) {
+                continue;
+            }
+
+            seen.add(key);
+            out.push(loc);
+        }
+
+        return out;
+    }
+
+    offsetToPosition(lineOffsets, offset) {
+        let line = this.offsetToLine(lineOffsets, offset) - 1;
+        let lineStart = lineOffsets[Math.max(0, line)] || 0;
+        let character = Math.max(0, offset - lineStart);
+
+        return new vscode.Position(line, character);
+    }
+
+    escapeRegex(value) {
+        return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
     shouldTrackFile(filePath) {
         if (!this.shouldIncludeVendor() && this.isVendorPath(filePath)) {
             return false;
@@ -737,6 +1601,15 @@ class PHPDefinitionIndex {
 
     isVendorPath(filePath) {
         return filePath.split(path.sep).includes('vendor');
+    }
+
+    isNoopLikePath(filePath) {
+        let normalized = String(filePath || '').replace(/\\\\/g, '/').toLowerCase();
+        if (!normalized.endsWith('/noop.php') && !normalized.endsWith('noop.php')) {
+            return false;
+        }
+
+        return normalized.includes('/wp-admin/') || normalized.includes('/wp-includes/');
     }
 
     getExcludePattern() {
@@ -793,6 +1666,11 @@ class PHPDefinitionIndex {
             this.shortFunctionIndex.clear();
             this.methodIndex.clear();
             this.shortMethodIndex.clear();
+            this.tokenToFiles.clear();
+            this.parentToChildren.clear();
+            this._allClassRecordsDirty = true;
+            this._fileContentCache.clear();
+            this._workspaceFolderCache.clear();
 
             for (let entry of cache.files) {
                 if (!entry || !entry.filePath || !Array.isArray(entry.symbols)) {
@@ -861,6 +1739,40 @@ class PHPDefinitionIndex {
         } catch {
             // Ignore missing cache files.
         }
+    }
+
+    async canResolveToken(document, position, token) {
+        await this.waitUntilReady();
+
+        let context = this.parseNamespaceAndImports(document.getText());
+        let candidates = this.resolveClassCandidates(token, context);
+
+        for (let candidate of candidates) {
+            let records = this.classIndex.get(candidate.toLowerCase()) || [];
+            if (records.length > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    async findAvailableClassesNamed(className) {
+        await this.waitUntilReady();
+
+        let normalized = String(className || '').replace(/^\\+/, '');
+        let shortKey = normalized.split('\\').pop().toLowerCase();
+
+        let matches = [];
+        let shortMatches = this.shortClassIndex.get(shortKey) || [];
+
+        for (let record of shortMatches) {
+            if (record.kind === 'class') {
+                matches.push(record);
+            }
+        }
+
+        return matches.slice(0, 10);
     }
 
     log(message, level = 'INFO') {

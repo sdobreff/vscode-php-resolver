@@ -1,5 +1,34 @@
 # Change Log
 
+## 3.0.0
+
+### New Modules
+- **Code Lens** — inline reference and implementation counts above declarations.
+- **Type Hierarchy** — native VS Code supertypes/subtypes navigation.
+- **Dead Code Scanner** — detect unused classes and functions with clickable report.
+- **Document Symbol** — enhanced outline view with classes, methods, properties, constants.
+- **Inlay Hints** — show parameter names at call sites.
+- **Sort & Organize Imports** — group and alphabetize `use` statements.
+- **Extract Interface** — code action to generate an interface from a class.
+- **Circular Dependency Detection** — find namespace-level import cycles via DFS.
+- **Namespace Completion** — autocomplete inside `use` statements.
+- **PHPDoc Inheritance** — show inherited documentation on hover.
+- **Unused Import Detection** — real-time unused `use` diagnostics with quick-fix removal.
+
+### Performance Optimizations
+- Reverse token index (`tokenToFiles`) for O(1) symbol reference lookups.
+- Persistent inheritance graph (`parentToChildren`) for instant subtype resolution.
+- LRU file content cache (150 files) to reduce disk reads.
+- Binary search in offset range checks.
+- Lazy class records cache with dirty tracking.
+- Workspace folder and configuration caching.
+- Incremental index updates — only changed files reparsed on save.
+
+### Improvements
+- All new modules are independently toggleable via settings.
+- Dead code report opens as an editor document with clickable file paths.
+- Framework entry points (controllers, migrations, test classes, etc.) excluded from dead code results.
+
 ## 2.3.4
 - Bug fix where traits are used in the class files.
 

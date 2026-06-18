@@ -13,6 +13,12 @@ class PHPDefinitionProvider {
         }
 
         let result = await this.definitionIndex.findDefinitionWithTrace(document, position);
+        let strictSingleResult = config('definitionSingleResult') !== false;
+
+        let locations = result.locations;
+        if (strictSingleResult && Array.isArray(locations) && locations.length > 1) {
+            locations = [locations[0]];
+        }
 
         if (config('definitionTrace')) {
             let tokenRange = document.getWordRangeAtPosition(position, /[A-Za-z_\\][A-Za-z0-9_\\]*/);
@@ -25,15 +31,15 @@ class PHPDefinitionProvider {
                 this.traceOutput.appendLine(line);
             }
 
-            if (Array.isArray(result.locations) && result.locations.length > 0) {
-                this.traceOutput.appendLine('resolved-count=' + result.locations.length);
-                this.traceOutput.appendLine('resolved-first=' + result.locations[0].uri.fsPath + ':' + (result.locations[0].range.start.line + 1));
+            if (Array.isArray(locations) && locations.length > 0) {
+                this.traceOutput.appendLine('resolved-count=' + locations.length);
+                this.traceOutput.appendLine('resolved-first=' + locations[0].uri.fsPath + ':' + (locations[0].range.start.line + 1));
             } else {
                 this.traceOutput.appendLine('resolved-count=0');
             }
         }
 
-        return result.locations;
+        return locations;
     }
 
     showTraceOutput() {

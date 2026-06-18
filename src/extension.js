@@ -7,6 +7,29 @@ let Resolver = require('./Resolver');
 let ZipContentProvider = require('./ZipContentProvider');
 let PHPDefinitionIndex = require('./PHPDefinitionIndex');
 let PHPDefinitionProvider = require('./PHPDefinitionProvider');
+let PHPReferenceProvider = require('./PHPReferenceProvider');
+let PHPWorkspaceSymbolProvider = require('./PHPWorkspaceSymbolProvider');
+let PHPHoverProvider = require('./PHPHoverProvider');
+let PHPRenameProvider = require('./PHPRenameProvider');
+let PHPImplementationProvider = require('./PHPImplementationProvider');
+let PHPMissingUseProvider = require('./PHPMissingUseProvider');
+let PHPMissingUseDiagnosticsProvider = require('./PHPMissingUseDiagnosticsProvider');
+let PHPCallHierarchyProvider = require('./PHPCallHierarchyProvider');
+let PHPWordPressHookProvider = require('./PHPWordPressHookProvider');
+let PHPIndexHealthProvider = require('./PHPIndexHealthProvider');
+let PHPWorkspaceDiagnosticsProvider = require('./PHPWorkspaceDiagnosticsProvider');
+let PHPIndexBenchmark = require('./PHPIndexBenchmark');
+let PHPCodeLensProvider = require('./PHPCodeLensProvider');
+let PHPTypeHierarchyProvider = require('./PHPTypeHierarchyProvider');
+let PHPDeadCodeProvider = require('./PHPDeadCodeProvider');
+let PHPDocumentSymbolProvider = require('./PHPDocumentSymbolProvider');
+let PHPInlayHintsProvider = require('./PHPInlayHintsProvider');
+let PHPSortImportsProvider = require('./PHPSortImportsProvider');
+let PHPExtractInterfaceProvider = require('./PHPExtractInterfaceProvider');
+let PHPCircularDependencyProvider = require('./PHPCircularDependencyProvider');
+let PHPNamespaceCompletionProvider = require('./PHPNamespaceCompletionProvider');
+let PHPDocInheritanceProvider = require('./PHPDocInheritanceProvider');
+let PHPUnusedImportProvider = require('./PHPUnusedImportProvider');
 let PHPBf = require('./PHPBf');
 let PHPCsFixer = require('./PHPCsFixer');
 let PHPCs = require('./PHPCs');
@@ -275,28 +298,313 @@ async function updateConfig(context) {
 
 async function activate(context) {
     let resolver = new Resolver;
-    definitionIndex = new PHPDefinitionIndex(context, logger);
-    definitionIndex.initialize().catch(() => {
-        logger.logMessage('Definition index initialization failed', 'WARN');
-    });
+    let definitionModuleEnabled = config('enableDefinitionModule') !== false;
+    let referencesModuleEnabled = config('enableReferencesModule') !== false;
+    let workspaceSymbolsModuleEnabled = config('enableWorkspaceSymbolsModule') !== false;
+    let renameModuleEnabled = config('enableRenameModule') !== false;
+    let implementationModuleEnabled = config('enableImplementationModule') !== false;
+    let missingUseModuleEnabled = config('enableMissingUseModule') !== false;
+    let callHierarchyModuleEnabled = config('enableCallHierarchyModule') !== false;
+    let wpHookModuleEnabled = config('enableWordPressHookModule') !== false;
+    let indexHealthModuleEnabled = config('enableIndexHealthModule') !== false;
+    let workspaceDiagnosticsModuleEnabled = config('enableWorkspaceDiagnosticsModule') !== false;
+    let hoverModuleEnabled = config('enableHoverModule') !== false;
+    let docblockModuleEnabled = config('enableDocblockModule') !== false;
+    let codeLensModuleEnabled = config('enableCodeLensModule') !== false;
+    let typeHierarchyModuleEnabled = config('enableTypeHierarchyModule') !== false;
+    let deadCodeModuleEnabled = config('enableDeadCodeModule') !== false;
+    let documentSymbolModuleEnabled = config('enableDocumentSymbolModule') !== false;
+    let inlayHintsModuleEnabled = config('enableInlayHintsModule') !== false;
+    let unusedImportModuleEnabled = config('enableUnusedImportModule') !== false;
+    let namespaceCompletionModuleEnabled = config('enableNamespaceCompletionModule') !== false;
+    let docInheritanceModuleEnabled = config('enableDocInheritanceModule') !== false;
+    let definitionProvider = null;
+    let referenceProvider = null;
+    let implementationProvider = null;
+    let indexHealthProvider = null;
+    let workspaceDiagnosticsProvider = null;
+    let deadCodeProvider = null;
+    let circularDependencyProvider = null;
+    let unusedImportProvider = null;
+    let indexBenchmark = null;
 
-    let definitionProvider = new PHPDefinitionProvider(definitionIndex);
-    context.subscriptions.push(vscode.languages.registerDefinitionProvider(
-        [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
-        definitionProvider
-    ));
-    context.subscriptions.push({
-        dispose: () => {
-            definitionProvider.dispose();
-        }
-    });
-    context.subscriptions.push({
-        dispose: () => {
-            if (definitionIndex) {
-                definitionIndex.dispose();
+    if (definitionModuleEnabled) {
+        definitionIndex = new PHPDefinitionIndex(context, logger);
+        definitionIndex.initialize().catch(() => {
+            logger.logMessage('Definition index initialization failed', 'WARN');
+        });
+
+        definitionProvider = new PHPDefinitionProvider(definitionIndex);
+        context.subscriptions.push(vscode.languages.registerDefinitionProvider(
+            [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+            definitionProvider
+        ));
+        context.subscriptions.push({
+            dispose: () => {
+                definitionProvider.dispose();
             }
+        });
+        context.subscriptions.push({
+            dispose: () => {
+                if (definitionIndex) {
+                    definitionIndex.dispose();
+                }
+            }
+        });
+
+        if (referencesModuleEnabled) {
+            referenceProvider = new PHPReferenceProvider(definitionIndex);
+            context.subscriptions.push(vscode.languages.registerReferenceProvider(
+                [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+                referenceProvider
+            ));
+            context.subscriptions.push({
+                dispose: () => {
+                    if (referenceProvider) {
+                        referenceProvider.dispose();
+                    }
+                }
+            });
+        } else {
+            logger.logMessage('References module is disabled from configuration', 'INFO');
         }
-    });
+
+        if (workspaceSymbolsModuleEnabled) {
+            context.subscriptions.push(vscode.languages.registerWorkspaceSymbolProvider(
+                new PHPWorkspaceSymbolProvider(definitionIndex)
+            ));
+        } else {
+            logger.logMessage('Workspace symbols module is disabled from configuration', 'INFO');
+        }
+
+        if (hoverModuleEnabled) {
+            context.subscriptions.push(vscode.languages.registerHoverProvider(
+                [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+                new PHPHoverProvider(definitionIndex)
+            ));
+        } else {
+            logger.logMessage('Hover module is disabled from configuration', 'INFO');
+        }
+
+        if (renameModuleEnabled) {
+            context.subscriptions.push(vscode.languages.registerRenameProvider(
+                [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+                new PHPRenameProvider(definitionIndex)
+            ));
+        } else {
+            logger.logMessage('Rename module is disabled from configuration', 'INFO');
+        }
+
+        if (implementationModuleEnabled) {
+            implementationProvider = new PHPImplementationProvider(definitionIndex);
+            context.subscriptions.push(vscode.languages.registerImplementationProvider(
+                [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+                implementationProvider
+            ));
+            context.subscriptions.push({
+                dispose: () => {
+                    if (implementationProvider) {
+                        implementationProvider.dispose();
+                    }
+                }
+            });
+        } else {
+            logger.logMessage('Implementation module is disabled from configuration', 'INFO');
+        }
+
+        if (missingUseModuleEnabled) {
+            let missingUseDiagnosticsProvider = new PHPMissingUseDiagnosticsProvider(definitionIndex);
+            context.subscriptions.push(missingUseDiagnosticsProvider);
+            context.subscriptions.push(vscode.languages.registerCodeActionsProvider(
+                [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+                new PHPMissingUseProvider(definitionIndex),
+                { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
+            ));
+            context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((doc) => {
+                if (doc.languageId === 'php' || doc.languageId === 'hack') {
+                    missingUseDiagnosticsProvider.analyzeDocument(doc);
+                }
+            }));
+            context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
+                if (event.document.languageId === 'php' || event.document.languageId === 'hack') {
+                    missingUseDiagnosticsProvider.scheduleAnalysis(event.document);
+                }
+            }));
+            context.subscriptions.push(vscode.workspace.onDidSaveTextDocument((doc) => {
+                if (doc.languageId === 'php' || doc.languageId === 'hack') {
+                    missingUseDiagnosticsProvider.analyzeDocument(doc);
+                }
+            }));
+            context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((editor) => {
+                if (editor && (editor.document.languageId === 'php' || editor.document.languageId === 'hack')) {
+                    missingUseDiagnosticsProvider.analyzeDocument(editor.document);
+                }
+            }));
+
+            // Analyze already-open documents once the index is ready
+            definitionIndex.waitUntilReady().then(() => {
+                for (let editor of vscode.window.visibleTextEditors) {
+                    let doc = editor.document;
+                    if (doc.languageId === 'php' || doc.languageId === 'hack') {
+                        missingUseDiagnosticsProvider.analyzeDocument(doc);
+                    }
+                }
+            }).catch(() => {});
+        } else {
+            logger.logMessage('Missing use module is disabled from configuration', 'INFO');
+        }
+
+        if (callHierarchyModuleEnabled) {
+            let callHierarchyProvider = new PHPCallHierarchyProvider(definitionIndex);
+            context.subscriptions.push(vscode.languages.registerCallHierarchyProvider(
+                [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+                callHierarchyProvider
+            ));
+        } else {
+            logger.logMessage('Call hierarchy module is disabled from configuration', 'INFO');
+        }
+
+        if (wpHookModuleEnabled) {
+            let wpHookProvider = new PHPWordPressHookProvider(definitionIndex);
+            context.subscriptions.push(vscode.languages.registerDefinitionProvider(
+                [{ scheme: 'file', language: 'php' }],
+                { provideDefinition: (doc, pos) => wpHookProvider.provideDefinition(doc, pos) }
+            ));
+        } else {
+            logger.logMessage('WordPress hook module is disabled from configuration', 'INFO');
+        }
+
+        if (indexHealthModuleEnabled) {
+            indexHealthProvider = new PHPIndexHealthProvider(definitionIndex, logger);
+            indexHealthProvider.activate(context);
+            context.subscriptions.push({ dispose: () => indexHealthProvider.dispose() });
+        } else {
+            logger.logMessage('Index health module is disabled from configuration', 'INFO');
+        }
+
+        if (workspaceDiagnosticsModuleEnabled) {
+            workspaceDiagnosticsProvider = new PHPWorkspaceDiagnosticsProvider(definitionIndex, logger);
+            context.subscriptions.push(workspaceDiagnosticsProvider);
+
+            // Run workspace scan once index is ready
+            definitionIndex.waitUntilReady().then(() => {
+                workspaceDiagnosticsProvider.runFullScan();
+            }).catch(() => {});
+        } else {
+            logger.logMessage('Workspace diagnostics module is disabled from configuration', 'INFO');
+        }
+
+        if (codeLensModuleEnabled) {
+            let codeLensProvider = new PHPCodeLensProvider(definitionIndex);
+            context.subscriptions.push(vscode.languages.registerCodeLensProvider(
+                [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+                codeLensProvider
+            ));
+        } else {
+            logger.logMessage('Code lens module is disabled from configuration', 'INFO');
+        }
+
+        if (typeHierarchyModuleEnabled) {
+            let typeHierarchyProvider = new PHPTypeHierarchyProvider(definitionIndex);
+            context.subscriptions.push(vscode.languages.registerTypeHierarchyProvider(
+                [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+                typeHierarchyProvider
+            ));
+        } else {
+            logger.logMessage('Type hierarchy module is disabled from configuration', 'INFO');
+        }
+
+        if (deadCodeModuleEnabled) {
+            deadCodeProvider = new PHPDeadCodeProvider(definitionIndex, logger);
+            context.subscriptions.push(deadCodeProvider);
+
+            definitionIndex.waitUntilReady().then(() => {
+                deadCodeProvider.runScan();
+            }).catch(() => {});
+        } else {
+            logger.logMessage('Dead code module is disabled from configuration', 'INFO');
+        }
+
+        if (documentSymbolModuleEnabled) {
+            context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(
+                [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+                new PHPDocumentSymbolProvider(definitionIndex)
+            ));
+        } else {
+            logger.logMessage('Document symbol module is disabled from configuration', 'INFO');
+        }
+
+        if (inlayHintsModuleEnabled) {
+            context.subscriptions.push(vscode.languages.registerInlayHintsProvider(
+                [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+                new PHPInlayHintsProvider(definitionIndex)
+            ));
+        } else {
+            logger.logMessage('Inlay hints module is disabled from configuration', 'INFO');
+        }
+
+        if (unusedImportModuleEnabled) {
+            unusedImportProvider = new PHPUnusedImportProvider(definitionIndex);
+            context.subscriptions.push(unusedImportProvider);
+            context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((doc) => {
+                if (doc.languageId === 'php' || doc.languageId === 'hack') {
+                    unusedImportProvider.analyzeDocument(doc);
+                }
+            }));
+            context.subscriptions.push(vscode.workspace.onDidSaveTextDocument((doc) => {
+                if (doc.languageId === 'php' || doc.languageId === 'hack') {
+                    unusedImportProvider.analyzeDocument(doc);
+                }
+            }));
+            context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
+                if (event.document.languageId === 'php' || event.document.languageId === 'hack') {
+                    unusedImportProvider.scheduleAnalysis(event.document);
+                }
+            }));
+            context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((editor) => {
+                if (editor && (editor.document.languageId === 'php' || editor.document.languageId === 'hack')) {
+                    unusedImportProvider.analyzeDocument(editor.document);
+                }
+            }));
+        } else {
+            logger.logMessage('Unused import module is disabled from configuration', 'INFO');
+        }
+
+        if (namespaceCompletionModuleEnabled) {
+            context.subscriptions.push(vscode.languages.registerCompletionItemProvider(
+                [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+                new PHPNamespaceCompletionProvider(definitionIndex),
+                '\\' // Trigger on backslash
+            ));
+        } else {
+            logger.logMessage('Namespace completion module is disabled from configuration', 'INFO');
+        }
+
+        if (docInheritanceModuleEnabled) {
+            context.subscriptions.push(vscode.languages.registerHoverProvider(
+                [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+                new PHPDocInheritanceProvider(definitionIndex)
+            ));
+        } else {
+            logger.logMessage('Doc inheritance module is disabled from configuration', 'INFO');
+        }
+
+        // Extract Interface code action (always available when definition module is on)
+        let extractInterfaceProvider = new PHPExtractInterfaceProvider(definitionIndex);
+        context.subscriptions.push(vscode.languages.registerCodeActionsProvider(
+            [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
+            extractInterfaceProvider,
+            { providedCodeActionKinds: [vscode.CodeActionKind.RefactorExtract] }
+        ));
+
+        // Circular dependency provider
+        circularDependencyProvider = new PHPCircularDependencyProvider(definitionIndex, logger);
+        context.subscriptions.push(circularDependencyProvider);
+
+        indexBenchmark = new PHPIndexBenchmark(definitionIndex, logger);
+    } else {
+        logger.logMessage('Definition module is disabled from configuration', 'INFO');
+    }
 
     let zipContentProvider = new ZipContentProvider();
     let zipContentView = vscode.window.createTreeView('phpResolverZipContents', {
@@ -578,7 +886,8 @@ async function activate(context) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('phpResolver.clearDefinitionCache', async () => {
-            if (!definitionIndex) {
+            if (!definitionModuleEnabled || !definitionIndex) {
+                vscode.window.showInformationMessage('Go to Definition module is disabled. Enable phpResolver.enableDefinitionModule and reload window.');
                 return;
             }
 
@@ -595,7 +904,225 @@ async function activate(context) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('phpResolver.showDefinitionTrace', () => {
+            if (!definitionModuleEnabled || !definitionProvider) {
+                vscode.window.showInformationMessage('Go to Definition module is disabled. Enable phpResolver.enableDefinitionModule and reload window.');
+                return;
+            }
+
             definitionProvider.showTraceOutput();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.showReferencesTrace', () => {
+            if (!definitionModuleEnabled || !referencesModuleEnabled || !referenceProvider) {
+                vscode.window.showInformationMessage('References module is disabled. Enable phpResolver.enableDefinitionModule and phpResolver.enableReferencesModule, then reload window.');
+                return;
+            }
+
+            referenceProvider.showTraceOutput();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.showImplementationTrace', () => {
+            if (!definitionModuleEnabled || !implementationModuleEnabled || !implementationProvider) {
+                vscode.window.showInformationMessage('Implementation module is disabled. Enable phpResolver.enableDefinitionModule and phpResolver.enableImplementationModule, then reload window.');
+                return;
+            }
+
+            implementationProvider.showTraceOutput();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.showIndexHealth', () => {
+            if (!definitionModuleEnabled || !indexHealthProvider) {
+                vscode.window.showInformationMessage('Index health module is disabled. Enable phpResolver.enableDefinitionModule and phpResolver.enableIndexHealthModule, then reload window.');
+                return;
+            }
+
+            let report = indexHealthProvider.showHealthReport();
+            let outputChannel = vscode.window.createOutputChannel('PHP Resolver Index Health');
+            outputChannel.clear();
+            outputChannel.appendLine(report);
+            outputChannel.show();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.runWorkspaceDiagnostics', async () => {
+            if (!definitionModuleEnabled || !workspaceDiagnosticsProvider) {
+                vscode.window.showInformationMessage('Workspace diagnostics module is disabled. Enable phpResolver.enableDefinitionModule and phpResolver.enableWorkspaceDiagnosticsModule, then reload window.');
+                return;
+            }
+
+            let count = await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: 'PHP Resolver: scanning workspace for issues...'
+            }, async () => {
+                return await workspaceDiagnosticsProvider.runFullScan();
+            });
+
+            vscode.window.showInformationMessage('PHP Resolver workspace scan complete: ' + count + ' issues found.');
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.clearWorkspaceDiagnostics', () => {
+            if (workspaceDiagnosticsProvider) {
+                workspaceDiagnosticsProvider.clear();
+                vscode.window.showInformationMessage('PHP Resolver workspace diagnostics cleared.');
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.runBenchmark', async () => {
+            if (!definitionModuleEnabled || !indexBenchmark) {
+                vscode.window.showInformationMessage('Definition module is disabled. Enable phpResolver.enableDefinitionModule and reload window.');
+                return;
+            }
+
+            let report = await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: 'PHP Resolver: running performance benchmark...'
+            }, async () => {
+                return await indexBenchmark.runBenchmark();
+            });
+
+            let outputChannel = vscode.window.createOutputChannel('PHP Resolver Benchmark');
+            outputChannel.clear();
+            outputChannel.appendLine(report);
+            outputChannel.show();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.runDeadCodeScan', async () => {
+            if (!definitionModuleEnabled || !deadCodeProvider) {
+                vscode.window.showInformationMessage('Dead code module requires definition module. Enable both and reload.');
+                return;
+            }
+
+            let result = await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: 'PHP Resolver: scanning for dead code...'
+            }, async () => {
+                return await deadCodeProvider.runScan();
+            });
+
+            let doc = await vscode.workspace.openTextDocument({
+                language: 'plaintext',
+                content: result.report
+            });
+
+            // Register a link provider so file paths are clickable
+            let linkDisposable = vscode.languages.registerDocumentLinkProvider(
+                { scheme: 'untitled', language: 'plaintext' },
+                deadCodeProvider
+            );
+            context.subscriptions.push(linkDisposable);
+
+            await vscode.window.showTextDocument(doc, { preview: false });
+
+            vscode.window.showInformationMessage(`Dead code scan: ${result.count} potentially unused symbols found. Click file paths to open.`);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.clearDeadCode', () => {
+            if (deadCodeProvider) {
+                deadCodeProvider.clear();
+                vscode.window.showInformationMessage('Dead code diagnostics cleared.');
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.runCircularDependencyScan', async () => {
+            if (!definitionModuleEnabled || !circularDependencyProvider) {
+                vscode.window.showInformationMessage('Circular dependency scan requires definition module.');
+                return;
+            }
+
+            let count = await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: 'PHP Resolver: scanning for circular dependencies...'
+            }, async () => {
+                return await circularDependencyProvider.runScan();
+            });
+
+            vscode.window.showInformationMessage(`Circular dependency scan: ${count} cycles found.`);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.clearCircularDependencies', () => {
+            if (circularDependencyProvider) {
+                circularDependencyProvider.clear();
+                vscode.window.showInformationMessage('Circular dependency diagnostics cleared.');
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.sortOrganizeImports', async () => {
+            let editor = vscode.window.activeTextEditor;
+            if (!editor || (editor.document.languageId !== 'php' && editor.document.languageId !== 'hack')) {
+                vscode.window.showInformationMessage('Open a PHP file first.');
+                return;
+            }
+
+            let sortProvider = new PHPSortImportsProvider();
+            let edit = await sortProvider.sortImports(editor.document);
+            if (edit) {
+                await vscode.workspace.applyEdit(edit);
+                vscode.window.showInformationMessage('Use statements organized.');
+            } else {
+                vscode.window.showInformationMessage('No use statements to organize.');
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.removeUnusedImports', async () => {
+            let editor = vscode.window.activeTextEditor;
+            if (!editor || (editor.document.languageId !== 'php' && editor.document.languageId !== 'hack')) {
+                vscode.window.showInformationMessage('Open a PHP file first.');
+                return;
+            }
+
+            if (unusedImportProvider) {
+                await unusedImportProvider.removeUnusedImports(editor.document);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('phpResolver.extractInterface', async (document, lineNumber, className) => {
+            if (!definitionModuleEnabled || !definitionIndex) {
+                vscode.window.showInformationMessage('Definition module is disabled.');
+                return;
+            }
+
+            let doc = document || (vscode.window.activeTextEditor ? vscode.window.activeTextEditor.document : null);
+            if (!doc) return;
+
+            let provider = new PHPExtractInterfaceProvider(definitionIndex);
+            let line = lineNumber !== undefined ? lineNumber : (vscode.window.activeTextEditor ? vscode.window.activeTextEditor.selection.active.line : 0);
+            let name = className || 'MyClass';
+
+            // If called without args, try to detect class at cursor
+            if (!className && vscode.window.activeTextEditor) {
+                let lineText = doc.lineAt(line).text;
+                let classMatch = lineText.match(/\bclass\s+([A-Za-z_][A-Za-z0-9_]*)/);
+                if (classMatch) {
+                    name = classMatch[1];
+                }
+            }
+
+            await provider.extractInterface(doc, line, name);
         })
     );
 
@@ -822,6 +1349,11 @@ async function activate(context) {
 
     context.subscriptions.push(
         vscode.commands.registerTextEditorCommand('phpResolver.docblockTrigger', (editor) => {
+            if (!docblockModuleEnabled) {
+                vscode.window.showInformationMessage('DocBlock module is disabled. Enable phpResolver.enableDocblockModule and reload window.');
+                return;
+            }
+
             editor.selection = new vscode.Selection(editor.selection.start, editor.selection.start);
 
             let selectionRange = new vscode.Range(editor.selection.start, editor.selection.end);
@@ -833,6 +1365,11 @@ async function activate(context) {
 
     context.subscriptions.push(
         vscode.commands.registerTextEditorCommand('phpResolver.syncParams', (editor) => {
+            if (!docblockModuleEnabled) {
+                vscode.window.showInformationMessage('DocBlock module is disabled. Enable phpResolver.enableDocblockModule and reload window.');
+                return;
+            }
+
             let document = editor.document;
             let cursorLine = editor.selection.start.line;
 
@@ -1187,42 +1724,46 @@ async function activate(context) {
         providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
     }));
 
-    const providerSnippet = vscode.languages.registerCompletionItemProvider(
-        ['php', 'hack'],
-        {
-            provideCompletionItems(document, position) {
-                let a = [],
-                    i;
-                if ((i = document.getWordRangeAtPosition(position, /\/\*\*/)) !== void 0) {
-                    let s = new DocBuilder(i, activeEditor()),
-                        c = new vscode.CompletionItem("/**", vscode.CompletionItemKind.Snippet);
-                    c.detail = EXTENSION_NAME, c.documentation = "Generate a PHP DocBlock from the code snippet below.";
-                    let g = document.getWordRangeAtPosition(position, /\/\*\* \*\//);
-                    return c.range = g, c.insertText = s.autoDocument(), a.push(c), a;
+    if (docblockModuleEnabled) {
+        const providerSnippet = vscode.languages.registerCompletionItemProvider(
+            ['php', 'hack'],
+            {
+                provideCompletionItems(document, position) {
+                    let a = [],
+                        i;
+                    if ((i = document.getWordRangeAtPosition(position, /\/\*\*/)) !== void 0) {
+                        let s = new DocBuilder(i, activeEditor()),
+                            c = new vscode.CompletionItem("/**", vscode.CompletionItemKind.Snippet);
+                        c.detail = EXTENSION_NAME, c.documentation = "Generate a PHP DocBlock from the code snippet below.";
+                        let g = document.getWordRangeAtPosition(position, /\/\*\* \*\//);
+                        return c.range = g, c.insertText = s.autoDocument(), a.push(c), a;
+                    }
+                    if ((i = document.getWordRangeAtPosition(position, /\@[a-z]*/)) === void 0) return a;
+                    let l = document.getText(i);
+                    return getDocBlockTags().filter(s => s.tag.match(l) !== null).forEach(s => {
+                        let c = new vscode.CompletionItem(s.tag, vscode.CompletionItemKind.Snippet);
+                        c.range = i, c.insertText = new vscode.SnippetString(s.snippet), a.push(c);
+                        c.detail = EXTENSION_NAME, c.documentation = "Generate a PHP Block Tag from the code snippet below.";
+                    }), a;
+                    // const linePrefix = document.lineAt(position).text.substr(0, position.character);
+                    // if (!linePrefix.endsWith('/***')) {
+                    //     return undefined;
+                    // }
+
+                    // const snippetCompletion = new vscode.CompletionItem('My Snippet');
+                    // snippetCompletion.insertText = new vscode.SnippetString('console.log(${1:value});');
+                    // snippetCompletion.documentation = new vscode.MarkdownString('Log to console');
+
+                    // return [snippetCompletion];
                 }
-                if ((i = document.getWordRangeAtPosition(position, /\@[a-z]*/)) === void 0) return a;
-                let l = document.getText(i);
-                return getDocBlockTags().filter(s => s.tag.match(l) !== null).forEach(s => {
-                    let c = new vscode.CompletionItem(s.tag, vscode.CompletionItemKind.Snippet);
-                    c.range = i, c.insertText = new vscode.SnippetString(s.snippet), a.push(c);
-                    c.detail = EXTENSION_NAME, c.documentation = "Generate a PHP Block Tag from the code snippet below.";
-                }), a;
-                // const linePrefix = document.lineAt(position).text.substr(0, position.character);
-                // if (!linePrefix.endsWith('/***')) {
-                //     return undefined;
-                // }
+            },
+            "*", "@"
+        );
 
-                // const snippetCompletion = new vscode.CompletionItem('My Snippet');
-                // snippetCompletion.insertText = new vscode.SnippetString('console.log(${1:value});');
-                // snippetCompletion.documentation = new vscode.MarkdownString('Log to console');
-
-                // return [snippetCompletion];
-            }
-        },
-        "*", "@"
-    );
-
-    context.subscriptions.push(providerSnippet);
+        context.subscriptions.push(providerSnippet);
+    } else {
+        logger.logMessage('DocBlock module is disabled from configuration', 'INFO');
+    }
 
     vscode.languages.setLanguageConfiguration('php', languageConfiguration);
     vscode.languages.setLanguageConfiguration('hack', languageConfiguration);
@@ -1230,7 +1771,7 @@ async function activate(context) {
     var onChangeConfig = await vscode.workspace.onDidChangeConfiguration(() => {
         updateConfig(context);
 
-        if (definitionIndex) {
+        if (definitionModuleEnabled && definitionIndex) {
             definitionIndex.reindexIncremental().catch(() => {
                 logger.logMessage('Definition index reindex failed after config change', 'WARN');
             });
