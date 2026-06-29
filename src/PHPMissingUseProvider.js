@@ -22,15 +22,26 @@ class PHPMissingUseProvider {
                 continue;
             }
 
-            let missingClassName = diagnostic.message;
+            let missingClassName = diagnostic.code || diagnostic.message;
             let classRecords = await this.definitionIndex.findAvailableClassesNamed(missingClassName);
             if (classRecords.length === 0) {
                 continue;
             }
 
+            // Deduplicate by FQCN to avoid showing the same import multiple times
+            let seenFqcns = new Set();
+            let uniqueRecords = [];
+            for (let record of classRecords) {
+                let fqcn = record.fqcn || record.name;
+                if (!seenFqcns.has(fqcn.toLowerCase())) {
+                    seenFqcns.add(fqcn.toLowerCase());
+                    uniqueRecords.push(record);
+                }
+            }
+
             let position = diagnostic.range.start;
 
-            for (let record of classRecords.slice(0, 3)) {
+            for (let record of uniqueRecords.slice(0, 3)) {
                 let fqcn = record.fqcn || record.name;
 
                 let addUseAction = new vscode.CodeAction(

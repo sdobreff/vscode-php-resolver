@@ -17,6 +17,7 @@ class PHPMissingUseDiagnosticsProvider {
         this.definitionIndex = definitionIndex;
         this.diagnosticsCollection = vscode.languages.createDiagnosticCollection('php-resolver-missing-use');
         this._debounceTimer = null;
+        this._runGeneration = 0;
     }
 
     scheduleAnalysis(document) {
@@ -35,26 +36,27 @@ class PHPMissingUseDiagnosticsProvider {
             return;
         }
 
+        // Guard against concurrent runs — only the latest run applies results
+        let generation = ++this._runGeneration;
+
         await this.definitionIndex.waitUntilReady();
+        if (generation !== this._runGeneration) return;
 
         let diagnostics = [];
         let text = document.getText();
         let seen = new Set();
 
-        // Pre-parse file namespace and imports once for batch resolution
-        let filePath = document.uri.fsPath;
-        let entry = this.definitionIndex.fileEntries.get(filePath);
-        let fileNamespace = entry ? entry.namespace : '';
-        let fileImports = entry ? (entry.imports || []) : [];
-
-        // Build a set of imported short names for quick check
+        // Parse imports from LIVE document text (not stale index cache)
+        // so removals are detected immediately without reloading
+        let liveContext = this.definitionIndex.parseNamespaceAndImports(text);
         let importedNames = new Set();
-        for (let imp of fileImports) {
-            let alias = imp.alias || imp.fqcn.split('\\').pop();
+        for (let alias of Object.keys(liveContext.imports)) {
             importedNames.add(alias.toLowerCase());
         }
 
-        // Build set of class names defined in this file's namespace
+        // Build set of class names defined in this file
+        let filePath = document.uri.fsPath;
+        let entry = this.definitionIndex.fileEntries.get(filePath);
         let localClassNames = new Set();
         if (entry && entry.symbols) {
             for (let sym of entry.symbols) {
@@ -114,20 +116,27 @@ class PHPMissingUseDiagnosticsProvider {
 
         // Batch resolve: only call canResolveToken for tokens not pre-filtered
         for (let { token, position } of tokensToCheck) {
+            if (generation !== this._runGeneration) return;
+
             let range = document.getWordRangeAtPosition(position, /[A-Za-z_][A-Za-z0-9_]*/);
             if (!range) continue;
 
             let isResolvable = await this.definitionIndex.canResolveToken(document, position, token);
+            if (generation !== this._runGeneration) return;
+
             if (!isResolvable) {
                 // Check the class actually exists somewhere in the workspace
                 let available = await this.definitionIndex.findAvailableClassesNamed(token);
+                if (generation !== this._runGeneration) return;
+
                 if (available.length > 0) {
                     let diagnostic = new vscode.Diagnostic(
                         range,
-                        token,
-                        vscode.DiagnosticSeverity.Information
+                        `'${token}' is not imported`,
+                        vscode.DiagnosticSeverity.Error
                     );
                     diagnostic.source = 'php-resolver-missing-use';
+                    diagnostic.code = token;
                     diagnostics.push(diagnostic);
                 }
             }

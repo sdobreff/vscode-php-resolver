@@ -1,10 +1,12 @@
 let vscode = require('vscode');
+let fs = require('fs');
 
 class PHPDeadCodeProvider {
     constructor(definitionIndex, logger) {
         this.definitionIndex = definitionIndex;
         this.logger = logger;
         this.diagnosticsCollection = vscode.languages.createDiagnosticCollection('php-resolver-dead-code');
+        this._fileTextCache = new Map();
     }
 
     async runScan() {
@@ -14,6 +16,7 @@ class PHPDeadCodeProvider {
 
         await this.definitionIndex.waitUntilReady();
         this.diagnosticsCollection.clear();
+        this._fileTextCache.clear();
 
         let diagnosticMap = new Map();
         let issueCount = 0;
@@ -27,7 +30,7 @@ class PHPDeadCodeProvider {
             }
 
             for (let symbol of entry.symbols) {
-                if (symbol.kind !== 'class' && symbol.kind !== 'function') continue;
+                if (symbol.kind !== 'class' && symbol.kind !== 'function' && symbol.kind !== 'method') continue;
 
                 let tokenKey = symbol.name.toLowerCase();
                 let fileSet = this.definitionIndex.tokenToFiles.get(tokenKey);
@@ -48,13 +51,29 @@ class PHPDeadCodeProvider {
                         continue;
                     }
 
+                    // For methods and functions: check same-class references (self::, $this->, static::)
+                    // Functions are also checked because class methods inside if(!class_exists())
+                    // wrappers can be parsed as functions due to brace detection edge cases
+                    if (symbol.kind === 'method' || symbol.kind === 'function') {
+                        if (await this._hasSameClassReference(symbol, entry)) {
+                            continue;
+                        }
+                    }
+
+                    // For methods and functions: check WordPress hook registrations
+                    if (symbol.kind === 'method' || symbol.kind === 'function') {
+                        if (await this._hasHookReference(symbol, entry)) {
+                            continue;
+                        }
+                    }
+
                     let line = Math.max(0, (symbol.line || 1) - 1);
                     let range = new vscode.Range(line, 0, line, 200);
 
-                    let kindLabel = symbol.kind === 'class' ? (symbol.classType || 'class') : 'function';
+                    let kindLabel = symbol.kind === 'class' ? (symbol.classType || 'class') : (symbol.kind === 'method' ? 'method' : 'function');
                     let diagnostic = new vscode.Diagnostic(
                         range,
-                        `${kindLabel} "${symbol.name}" appears unused (no references found in other files)`,
+                        `${kindLabel} "${symbol.name}" appears unused (no references found)`,
                         vscode.DiagnosticSeverity.Hint
                     );
                     diagnostic.source = 'php-resolver-dead-code';
@@ -69,7 +88,7 @@ class PHPDeadCodeProvider {
                     results.push({
                         kind: kindLabel,
                         name: symbol.name,
-                        fqcn: symbol.fqcn || symbol.fqfn || symbol.name,
+                        fqcn: symbol.fqcn || symbol.fqfn || symbol.methodKey || symbol.name,
                         filePath: entry.filePath,
                         line: symbol.line || 1
                     });
@@ -77,6 +96,8 @@ class PHPDeadCodeProvider {
                 }
             }
         }
+
+        this._fileTextCache.clear();
 
         for (let { uri, diagnostics } of diagnosticMap.values()) {
             this.diagnosticsCollection.set(uri, diagnostics);
@@ -101,11 +122,12 @@ class PHPDeadCodeProvider {
         lines.push(`Dead Code Scan Report`);
         lines.push(`${'='.repeat(60)}`);
         lines.push(`Found ${results.length} potentially unused symbols`);
-        lines.push(`(No cross-file references detected)`);
+        lines.push(`(No references detected)`);
         lines.push('');
 
         // Group by kind
-        let classes = results.filter(r => r.kind !== 'function');
+        let classes = results.filter(r => r.kind !== 'function' && r.kind !== 'method');
+        let methods = results.filter(r => r.kind === 'method');
         let functions = results.filter(r => r.kind === 'function');
 
         if (classes.length > 0) {
@@ -114,6 +136,16 @@ class PHPDeadCodeProvider {
             classes.sort((a, b) => a.name.localeCompare(b.name));
             for (let r of classes) {
                 lines.push(`${r.filePath}:${r.line}: [${r.kind}] ${r.fqcn}`);
+            }
+            lines.push('');
+        }
+
+        if (methods.length > 0) {
+            lines.push(`--- Methods (${methods.length}) ---`);
+            lines.push('');
+            methods.sort((a, b) => a.name.localeCompare(b.name));
+            for (let r of methods) {
+                lines.push(`${r.filePath}:${r.line}: ${r.fqcn}()`);
             }
             lines.push('');
         }
@@ -150,6 +182,13 @@ class PHPDeadCodeProvider {
             }
         }
 
+        // Skip magic methods and common framework methods
+        if (symbol.kind === 'method') {
+            if (name.startsWith('__')) return true; // __construct, __destruct, __get, etc.
+            let frameworkMethods = ['boot', 'register', 'handle', 'invoke', 'run', 'setup', 'teardown', 'up', 'down'];
+            if (frameworkMethods.includes(name)) return true;
+        }
+
         // Skip main/index files
         let baseName = entry.filePath.split('/').pop().toLowerCase();
         if (baseName === 'index.php' || baseName === 'functions.php' || baseName === 'bootstrap.php') {
@@ -157,6 +196,69 @@ class PHPDeadCodeProvider {
         }
 
         return false;
+    }
+
+    async _getFileText(filePath) {
+        if (this._fileTextCache.has(filePath)) {
+            return this._fileTextCache.get(filePath);
+        }
+        try {
+            let text = await fs.promises.readFile(filePath, 'utf8');
+            this._fileTextCache.set(filePath, text);
+            return text;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Check if a method is referenced within the same class via self::, $this->, or static::
+     */
+    async _hasSameClassReference(symbol, entry) {
+        let text = await this._getFileText(entry.filePath);
+        if (!text) return false;
+
+        let escaped = this._escapeRegex(symbol.name);
+        // Match self::method(, static::method(, $this->method(
+        let pattern = new RegExp(
+            `(?:self|static)\\s*::\\s*${escaped}\\s*\\(|\\$this\\s*->\\s*${escaped}\\s*\\(`,
+            'i'
+        );
+        return pattern.test(text);
+    }
+
+    /**
+     * Check if a method/function is registered as a WordPress hook callback.
+     * Checks same-file for array callbacks: add_action('hook', [$this, 'method'])
+     * and string callbacks: add_action('hook', 'function_name')
+     */
+    async _hasHookReference(symbol, entry) {
+        let text = await this._getFileText(entry.filePath);
+        if (!text) return false;
+
+        let escaped = this._escapeRegex(symbol.name);
+
+        // Array callback: add_action/add_filter('...', [..., 'methodName'])
+        let arrayPattern = new RegExp(
+            `(?:add_action|add_filter)\\s*\\([^)]*\\[[^\\]]*,\\s*['"]${escaped}['"]\\s*\\]`,
+            'i'
+        );
+        if (arrayPattern.test(text)) return true;
+
+        // String callback: add_action/add_filter('...', 'functionName')
+        if (symbol.kind === 'function') {
+            let stringPattern = new RegExp(
+                `(?:add_action|add_filter)\\s*\\([^,]+,\\s*['"]${escaped}['"]`,
+                'i'
+            );
+            if (stringPattern.test(text)) return true;
+        }
+
+        return false;
+    }
+
+    _escapeRegex(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
     clear() {

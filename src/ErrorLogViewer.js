@@ -1,7 +1,6 @@
 let vscode = require('vscode');
 let Tail = require('tail').Tail;
 const { config } = require('./Helpers');
-const notifier = require('node-notifier');
 let FileSize = require('./FileSize');
 let fs = require('fs');
 
@@ -33,33 +32,26 @@ class ErrorLogViewer {
 
                     if (data.includes('PHP Fatal error')) {
                         this.outputChannel.show();
-                        let that = this;
-                        const path = require('path');
-                        notifier.notify(
-                            {
-                                title: 'PHP error was triggered',
-                                message: 'Click here to go to the file generated the error',
-                                open: "vscode://file" + this.extractErrorFileAndLine(data),
-                                icon: path.join(__dirname, '/../images/icon.png'), // Absolute path (doesn't work on balloons)
-                                // sound: true, // Only Notification Center or Windows Toasters
-                                wait: true // Wait with callback, until user action is taken against notification, does not apply to Windows Toasters as they always wait or notify-send as it does not support the wait option
-                            },
-                            function (error, response, metadata) {
-                                if (response === 'activate') {
-
-                                    vscode.workspace.openTextDocument(that.file)
-                                        .then(doc => {
-                                            vscode.window.showTextDocument(doc, { preview: true })
-                                                .then(x => {
-                                                    let activeEditor = vscode.window.activeTextEditor;
-                                                    let range = activeEditor.document.lineAt(that.line - 1).range;
+                        this.extractErrorFileAndLine(data);
+                        vscode.window.showErrorMessage(
+                            'PHP Fatal error was triggered',
+                            'Go to file'
+                        ).then(action => {
+                            if (action === 'Go to file' && this.file) {
+                                vscode.workspace.openTextDocument(this.file)
+                                    .then(doc => {
+                                        vscode.window.showTextDocument(doc, { preview: true })
+                                            .then(() => {
+                                                let activeEditor = vscode.window.activeTextEditor;
+                                                if (activeEditor && this.line > 0) {
+                                                    let range = activeEditor.document.lineAt(this.line - 1).range;
                                                     activeEditor.selection = new vscode.Selection(range.start, range.end);
                                                     activeEditor.revealRange(range);
-                                                })
-                                        });
-                                }
+                                                }
+                                            });
+                                    });
                             }
-                        );
+                        });
                     }
                 });
                 tail.on("error", function (error) {

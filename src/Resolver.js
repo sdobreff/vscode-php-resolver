@@ -1,6 +1,5 @@
 let vscode = require('vscode');
 // let builtInClasses = require('./classes');
-let naturalSort = require('node-natural-sort');
 let crypto = require('crypto');
 let { activeEditor, config, showMessage, showErrorMessage } = require('./Helpers');
 
@@ -659,13 +658,10 @@ class Resolver {
         }
 
         if (config('sortNatural')) {
-            let natsort = naturalSort({
-                caseSensitive: true,
-                order: config('sortAlphabetically') ? 'ASC' : 'DESC'
-            });
-
+            let desc = !config('sortAlphabetically');
             sortFunction = (a, b) => {
-                return natsort(a.text, b.text);
+                let result = a.text.localeCompare(b.text, undefined, { numeric: true, sensitivity: 'case' });
+                return desc ? -result : result;
             };
         }
 

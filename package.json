@@ -226,11 +226,6 @@
 					"default": true,
 					"description": "Enable or disable workspace-wide diagnostics for duplicate declarations and unresolved parents (requires window reload)"
 				},
-				"phpResolver.enableCodeLensModule": {
-					"type": "boolean",
-					"default": true,
-					"description": "Enable or disable Code Lens showing reference and implementation counts above declarations (requires window reload)"
-				},
 				"phpResolver.enableTypeHierarchyModule": {
 					"type": "boolean",
 					"default": true,
@@ -826,8 +821,6 @@
 		"adm-zip": "^0.5.17",
 		"command-exists": "^1.2.9",
 		"cross-spawn": "^7.0.3",
-		"node-natural-sort": "^0.8.6",
-		"node-notifier": "^10.0.1",
 		"tail": "^2.2.4"
 	},
 	"devDependencies": {

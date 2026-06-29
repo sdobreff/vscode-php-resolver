@@ -19,7 +19,6 @@ let PHPWordPressHookProvider = require('./PHPWordPressHookProvider');
 let PHPIndexHealthProvider = require('./PHPIndexHealthProvider');
 let PHPWorkspaceDiagnosticsProvider = require('./PHPWorkspaceDiagnosticsProvider');
 let PHPIndexBenchmark = require('./PHPIndexBenchmark');
-let PHPCodeLensProvider = require('./PHPCodeLensProvider');
 let PHPTypeHierarchyProvider = require('./PHPTypeHierarchyProvider');
 let PHPDeadCodeProvider = require('./PHPDeadCodeProvider');
 let PHPDocumentSymbolProvider = require('./PHPDocumentSymbolProvider');
@@ -310,7 +309,6 @@ async function activate(context) {
     let workspaceDiagnosticsModuleEnabled = config('enableWorkspaceDiagnosticsModule') !== false;
     let hoverModuleEnabled = config('enableHoverModule') !== false;
     let docblockModuleEnabled = config('enableDocblockModule') !== false;
-    let codeLensModuleEnabled = config('enableCodeLensModule') !== false;
     let typeHierarchyModuleEnabled = config('enableTypeHierarchyModule') !== false;
     let deadCodeModuleEnabled = config('enableDeadCodeModule') !== false;
     let documentSymbolModuleEnabled = config('enableDocumentSymbolModule') !== false;
@@ -492,16 +490,6 @@ async function activate(context) {
             }).catch(() => {});
         } else {
             logger.logMessage('Workspace diagnostics module is disabled from configuration', 'INFO');
-        }
-
-        if (codeLensModuleEnabled) {
-            let codeLensProvider = new PHPCodeLensProvider(definitionIndex);
-            context.subscriptions.push(vscode.languages.registerCodeLensProvider(
-                [{ scheme: 'file', language: 'php' }, { scheme: 'file', language: 'hack' }],
-                codeLensProvider
-            ));
-        } else {
-            logger.logMessage('Code lens module is disabled from configuration', 'INFO');
         }
 
         if (typeHierarchyModuleEnabled) {

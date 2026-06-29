@@ -472,6 +472,29 @@ class PHPDefinitionIndex {
                 return { locations: this.toLocations(functionMatches), trace };
             }
 
+            // If cursor is on a method/function definition line, resolve to the defined symbol
+            let textBeforeToken = lineText.slice(0, range.start.character);
+            if (/\bfunction\s+&?\s*$/.test(textBeforeToken)) {
+                let methodRecords = this.shortMethodIndex.get(token.toLowerCase()) || [];
+                if (methodRecords.length > 0) {
+                    let sameLocation = methodRecords.filter(r => r.filePath === document.uri.fsPath && r.line === position.line + 1);
+                    let records = sameLocation.length > 0 ? sameLocation : methodRecords;
+                    let ranked = this.rankRecords(records, document.uri);
+                    pushTrace('resolved-by=method-definition records=' + ranked.length);
+                    return { locations: this.toLocations(ranked), trace };
+                }
+
+                // Also check function index (for functions parsed inside class_exists wrappers)
+                let fnRecords = this.shortFunctionIndex.get(token.toLowerCase()) || [];
+                if (fnRecords.length > 0) {
+                    let sameLocation = fnRecords.filter(r => r.filePath === document.uri.fsPath && r.line === position.line + 1);
+                    let records = sameLocation.length > 0 ? sameLocation : fnRecords;
+                    let ranked = this.rankRecords(records, document.uri);
+                    pushTrace('resolved-by=function-definition records=' + ranked.length);
+                    return { locations: this.toLocations(ranked), trace };
+                }
+            }
+
             pushTrace('function-call-without-match');
             return { locations: [], trace };
         }
@@ -1415,6 +1438,10 @@ class PHPDefinitionIndex {
             if (fqfn) {
                 out.push(new RegExp('\\\\' + fqfn + '\\s*\\(', 'g'));
             }
+            // WordPress hook array callbacks: [..., 'functionName']
+            out.push(new RegExp('\\[\\s*[^\\]]*,\\s*[\'"]' + name + '[\'"]\\s*\\]', 'g'));
+            // WordPress hook string callbacks: add_action('hook', 'functionName')
+            out.push(new RegExp('(?:add_action|add_filter)\\s*\\([^,]+,\\s*[\'"]' + name + '[\'"]', 'g'));
             return out;
         }
 
@@ -1423,6 +1450,8 @@ class PHPDefinitionIndex {
             out.push(new RegExp('::\\s*' + method + '\\s*\\(', 'g'));
             out.push(new RegExp('->\\s*' + method + '\\s*\\(', 'g'));
             out.push(new RegExp('\\bfunction\\s+&?\\s*' + method + '\\s*\\(', 'g'));
+            // WordPress hook array callbacks: add_action/add_filter('...', [..., 'method'])
+            out.push(new RegExp('\\[\\s*[^\\]]*,\\s*[\'"]' + method + '[\'"]\\s*\\]', 'g'));
             return out;
         }
 
@@ -1556,13 +1585,7 @@ class PHPDefinitionIndex {
         let seen = new Set();
 
         for (let loc of locations) {
-            let key = [
-                loc.uri.fsPath,
-                loc.range.start.line,
-                loc.range.start.character,
-                loc.range.end.line,
-                loc.range.end.character,
-            ].join(':');
+            let key = loc.uri.fsPath + ':' + loc.range.start.line;
 
             if (seen.has(key)) {
                 continue;
@@ -1745,13 +1768,26 @@ class PHPDefinitionIndex {
         await this.waitUntilReady();
 
         let context = this.parseNamespaceAndImports(document.getText());
-        let candidates = this.resolveClassCandidates(token, context);
 
-        for (let candidate of candidates) {
-            let records = this.classIndex.get(candidate.toLowerCase()) || [];
-            if (records.length > 0) {
-                return true;
-            }
+        // PHP class resolution rules:
+        // 1. If imported via use statement, resolves to the imported FQCN
+        // 2. If in a namespace, resolves to namespace\token (same namespace only)
+        // 3. If NOT in a namespace, resolves to bare token (global)
+        // PHP does NOT fall back to global for unqualified class names in a namespace.
+
+        let imported = context.imports[token.toLowerCase()];
+        if (imported) {
+            let records = this.classIndex.get(imported.toLowerCase()) || [];
+            if (records.length > 0) return true;
+        }
+
+        if (context.namespace) {
+            let fqcn = context.namespace + '\\' + token;
+            let records = this.classIndex.get(fqcn.toLowerCase()) || [];
+            if (records.length > 0) return true;
+        } else {
+            let records = this.classIndex.get(token.toLowerCase()) || [];
+            if (records.length > 0) return true;
         }
 
         return false;

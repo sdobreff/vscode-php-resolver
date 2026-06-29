@@ -1,2 +1,6 @@
 user.resolver.config.json
 user.resolver.fixer.config.php
+.gitignore
+PHASE_ROADMAP.md
+.vscode/
+test/
